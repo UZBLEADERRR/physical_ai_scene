@@ -18,7 +18,7 @@ import json
 from dataclasses import asdict, dataclass, field, fields
 from typing import Optional
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"
 
 
 @dataclass
@@ -52,6 +52,10 @@ class ObjectInstance3D:
     fusion_mode: str = "adaptive"
     fusion_weights: dict = field(default_factory=dict)
     fused_confidence: float = 0.0
+    # --- depth reliability (Week 7) ------------------------------------
+    depth_status: str = "ok"  # ok | transparent_suspected | no_depth
+    depth_reliability: dict = field(default_factory=dict)
+    geometry_source: str = "depth"  # depth | mask_plane (no usable depth, e.g. glass)
     state: str = "observed"
     schema_version: str = SCHEMA_VERSION
 

@@ -35,3 +35,17 @@ def rle_decode(rle: dict) -> np.ndarray:
         pos += run
         val = not val
     return flat.reshape((h, w), order="F")
+
+
+def erode(mask: np.ndarray, iterations: int = 1) -> np.ndarray:
+    """4-neighbour binary erosion (no SciPy dependency)."""
+    m = np.asarray(mask, dtype=bool)
+    for _ in range(iterations):
+        e = m.copy()
+        e[1:] &= m[:-1]
+        e[:-1] &= m[1:]
+        e[:, 1:] &= m[:, :-1]
+        e[:, :-1] &= m[:, 1:]
+        e[0, :] = e[-1, :] = e[:, 0] = e[:, -1] = False
+        m = e
+    return m

@@ -151,15 +151,22 @@ def oriented_bbox(pcd: o3d.geometry.PointCloud) -> dict:
     if min(pca["extent"]) < 1e-4:
         return pca
     try:
-        obb = pcd.get_minimal_oriented_bounding_box(robust=True)
+        with o3d.utility.VerbosityContextManager(o3d.utility.VerbosityLevel.Error):
+            obb = pcd.get_minimal_oriented_bounding_box(robust=True)
     except RuntimeError:
         return pca
     extent = np.asarray(obb.extent)
     if not np.all(np.isfinite(extent)) or extent.min() <= 0:
         return pca
+    # Open3D can return a rotation that is orthogonal only to ~1e-6; snap it back
+    U, _, Vt = np.linalg.svd(np.asarray(obb.R))
+    R = U @ Vt
+    if np.linalg.det(R) < 0:
+        U[:, -1] *= -1
+        R = U @ Vt
     return {
         "center": np.asarray(obb.center).tolist(),
-        "rotation": np.asarray(obb.R).tolist(),
+        "rotation": R.tolist(),
         "extent": extent.tolist(),
     }
 

@@ -2,8 +2,22 @@
 # All paths are relative to the repository root.
 
 depth:
-  min_m: 0.15          # RealSense D435 min range ~0.1-0.2 m
+  min_m: 0.15          # ZED Mini min range ~0.1-0.15 m
   max_m: 2.0           # ignore far background (floor, walls)
+  flying_pixel_filter: # Week 7: drop mixed pixels on depth edges
+    enabled: true
+    abs_thresh_m: 0.02
+    rel_thresh: 0.02
+
+depth_reliability:     # Week 7: transparent / reflective objects (glass)
+  enabled: true
+  erode_px: 3          # ignore SAM's border bleed onto the desk
+  no_depth_ratio: 0.05 # interior depth below this  -> no_depth
+  min_valid_ratio: 0.5 # interior depth below this  -> transparent_suspected (holes)
+  max_plane_leak: 0.35 # interior depth ON the desk -> transparent_suspected (see-through)
+  plane_leak_margin_m: 0.012
+  min_genuine_ratio: 0.10    # below this, depth points are noise -> use mask + desk plane
+  mask_plane_fallback: true  # place unusable-depth objects from mask + desk plane
 
 support_plane:
   enabled: true        # RANSAC the desk and drop its points from object masks

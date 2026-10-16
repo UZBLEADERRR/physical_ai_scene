@@ -10,11 +10,42 @@ pip install -r requirements.txt
 python -m src.preprocessing.mock_data --out data/mock/frame_000   # mock S1+S3 frame
 python -m src.fusion_3d.run_pipeline --frame data/mock/frame_000  # -> outputs/fusion_3d/
 python -m src.fusion_3d.run_pipeline --frame data/mock/frame_000 --show   # Open3D window
-pytest -v                                                          # 20 tests
+pytest -v                                                          # 35 tests
 python scripts/make_s2_report.py && python scripts/make_s2_slide.py  # figures in docs/s2/
 ```
 
 All paths are relative to the repo root.
+
+## Week 6 — real-data path (ZED Mini bags)
+
+```bash
+# 1. S1's ROS 2 bag → synchronized frame folders (|t_rgb − t_depth| ≤ 20 ms)
+python -m src.preprocessing.bag_reader --bag data/bags/<S1 bag> --out data/frames/static_baseline --profile zed_mini --every 10
+# 2. S3 writes observation.json into every frame folder (src/open_vocab)
+# 3. S2 over the whole sequence: per-frame JSON + stability report (+ temporal median)
+python -m src.fusion_3d.run_sequence --frames data/frames/static_baseline --out outputs/fusion_3d/static_baseline --temporal-median
+```
+
+Profiles: `zed_mini` (`/zed/zed_node/rgb/image_rect_color`, `/zed/zed_node/depth/depth_registered` 32FC1 metres,
+`/zed/zed_node/rgb/camera_info`) and `realsense` (16UC1 millimetres). Tested by writing a ZED-format bag from mock
+frames and reading it back bit-exact (`tests/test_s2_week6_7.py`).
+
+## Week 7 — depth cleaning and transparent objects
+
+* **Flying-pixel filter** (`depth.flying_pixel_filter`): drops pixels that differ from their 3×3 median by
+  more than 2 cm + 2 %. **Temporal median** (`--temporal-median`) for static scenes.
+* **Depth reliability** (`src/fusion_3d/depth_reliability.py`), measured on the eroded mask interior:
+  * `interior_valid_ratio` — holes (structured light / specular glass);
+  * `plane_leak_ratio` — share of interior depth lying *on the desk plane*: the stereo camera looked
+    *through* the glass;
+  * `genuine_ratio = valid × (1 − leak)`; `depth_status` = `ok` / `transparent_suspected` / `no_depth`.
+* **Mask + desk-plane fallback** (`src/fusion_3d/mask_plane.py`): when genuine depth < 10 %, the lowest mask
+  pixel of every column is intersected with the desk plane and a RANSAC circle is fitted (rim-only columns are
+  outliers); the height comes from the top of the mask. `geometry_source` says which path was used.
+
+Mock results (`python scripts/make_s2_week6_7_report.py` → `docs/s2/week6_7/`): fully transparent glass
+5.2 cm → **1.0 cm**, glass with no depth at all 5.6 cm → **1.0 cm**; partially visible glass costs ≈ 2 mm
+(0.7 → 0.9 cm) because only the mask interior is trusted.
 
 ## Inputs (handshake)
 
@@ -68,7 +99,9 @@ visible-surface centroid error ~3 cm (a single view only sees the front of the o
 
 ## Known failure cases
 
-- **Reflective/transparent objects:** depth holes → low `depth_confidence`; adaptive fusion lowers `w_depth`.
+- **Reflective/transparent objects:** flagged by holes / see-through cues; geometry from mask + desk plane
+  when no genuine depth remains. The see-through cue only works when the desk is behind the glass — if another
+  object stands behind it, those pixels look genuine. The fallback assumes a round footprint (glasses, bottles).
 - **Single viewpoint:** the centroid of visible points is biased towards the camera; prefer `box_map.center`.
 - **Touching objects:** if S3 masks overlap, DBSCAN keeps the largest cluster only.
 - **Thin objects (< 8 mm tall)** vanish with support-plane removal → lower `support_plane.margin_m`.
@@ -76,6 +109,5 @@ visible-surface centroid error ~3 cm (a single view only sees the front of the o
 
 ## Still to do (later weeks)
 
-- Live ROS 2 / rosbag frame loader once S1's bags are uploaded.
-- Run on S1's Static Baseline bag; replace mock with real S3 masks.
+- Run on S1's real ZED Mini bags once uploaded (loader is ready); replace mock with real S3 masks.
 - Sensor-subset ablation (F1 RGB vs F2 RGB-D) on real data.

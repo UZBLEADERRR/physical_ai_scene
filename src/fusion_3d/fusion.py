@@ -63,11 +63,12 @@ def rgb_quality(rgb: np.ndarray, mask: np.ndarray) -> tuple[float, dict]:
     }
 
 
-def depth_quality(valid_ratio: float, inlier_ratio: float, n_points: int, min_points: int) -> float:
-    """Valid-pixel ratio x outlier-filter inlier ratio, zero if too few points."""
+def depth_quality(valid_ratio: float, inlier_ratio: float, n_points: int, min_points: int,
+                  plane_leak_ratio: float = 0.0) -> float:
+    """Valid-pixel ratio x outlier-filter inlier ratio x (1 - see-through leak); zero if too few points."""
     if n_points < min_points:
         return 0.0
-    return _clip01(valid_ratio * (0.5 + 0.5 * inlier_ratio))
+    return _clip01(valid_ratio * (0.5 + 0.5 * inlier_ratio) * (1.0 - plane_leak_ratio))
 
 
 def fusion_weights(quality: ModalityQuality, mode: str = "adaptive", floor: float = 0.0) -> dict:

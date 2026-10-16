@@ -80,5 +80,6 @@ def load_intrinsics(path: str | Path) -> CameraIntrinsics:
 
 
 def save_intrinsics(intr: CameraIntrinsics, path: str | Path) -> None:
+    data = {k: (int(v) if k in ("width", "height") else float(v)) for k, v in intr.to_dict().items()}
     with open(path, "w", encoding="utf-8") as f:
-        yaml.safe_dump(intr.to_dict(), f, sort_keys=False)
+        yaml.safe_dump(data, f, sort_keys=False)
