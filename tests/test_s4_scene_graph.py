@@ -102,3 +102,49 @@ def test_persistent_id_wins_over_object_id():
     frame["objects"][1]["persistent_id"] = "mug_01"
     ids = {n["id"] for n in SceneGraphEngine().update(frame).export()["nodes"]}
     assert "mug_01" in ids and "mug_0" not in ids
+
+
+def _tilt(frame, deg):
+    """Simulate a wrong map TF: rotate every map-frame point about y by `deg` (desk tilts in the map)."""
+    import math
+    c, s = math.cos(math.radians(deg)), math.sin(math.radians(deg))
+    rot = lambda p: [c * p[0] + s * p[2], p[1], -s * p[0] + c * p[2]]
+    out = copy.deepcopy(frame)
+    for o in out["objects"]:
+        o["box_map"]["center"] = rot(o["box_map"]["center"])
+    # plane (z_map = 0 in the original map) expressed through the tilted map: n_map -> rot(n_map)
+    import numpy as np
+    T = np.array(frame["T_map_camera"], float)
+    R = np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]])
+    T2 = T.copy(); T2[:3] = R @ T[:3]
+    out["T_map_camera"] = T2.tolist()
+    return out
+
+
+def test_desk_alignment_survives_a_wrong_map_tf():
+    frame = load_objects(MOCK)
+    expected = edges(SceneGraphEngine().update(frame).export(), "on")
+    assert len(expected) == 5
+    tilted = _tilt(frame, 24.0)
+    naive = SceneGraphEngine(use_support_plane=False).update(tilted).export()
+    assert not edges(naive, "on")                                  # z = 0 assumption breaks
+    g = SceneGraphEngine().update(tilted).export()
+    assert edges(g, "on") == expected
+    assert g["desk_alignment"]["method"] == "support_plane"
+
+
+REAL = Path(__file__).resolve().parents[1] / "data/real"
+
+
+def test_real_bag_frames_everything_on_desk_despite_placeholder_tf():
+    """S2 output from S1_static_bag (S3 prompts tuned by hand). The bag's map TF is a placeholder:
+    the desk is tilted ~22 deg in `map`, so only the support-plane alignment makes `on` work."""
+    eng = SceneGraphEngine()
+    for f in ("060", "130", "200"):
+        g = eng.update(load_objects(REAL / f"s2_frame_{f}_objects.json")).export()
+    assert g["desk_alignment"]["method"] == "support_plane" and g["desk_alignment"]["desk_tilt_in_map_deg"] > 10
+    objs = {n["id"] for n in g["nodes"]} - {"desk_01"}
+    assert len(objs) == 8
+    assert {s for s, p, t in edges(g, "on") if t == "desk_01"} == objs
+    assert not edges(SceneGraphEngine(use_support_plane=False).update(
+        load_objects(REAL / "s2_frame_130_objects.json")).export(), "on")

@@ -28,6 +28,10 @@ when set, else `object_id`.
 | `left_of` | B is more than 5 cm to the right of A in the camera frame | `dx_m` |
 
 ## The desk
+**Desk-aligned frame.** If the S2 frame has `support_plane` and `T_map_camera`, S4 measures heights
+above the desk plane itself (`levelling.py`), so a wrong or placeholder map TF does not break `on`.
+The export says how it was done in `desk_alignment`. Without a support plane it falls back to `desk_top_z`.
+
 S2 removes the desk from the objects (support-plane RANSAC), so S4 adds a **virtual** `desk_01`
 node whose top is at `desk_top_z` (default 0.0, the map origin of S2's mock frame). It only takes
 part in `on`. Set `--desk-top-z` if S1's real map frame puts the table elsewhere.

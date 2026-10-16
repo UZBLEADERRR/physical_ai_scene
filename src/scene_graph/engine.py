@@ -5,6 +5,7 @@ from pathlib import Path
 import networkx as nx
 
 from . import rules
+from .levelling import desk_alignment
 
 SCHEMA_VERSION = "0.1"
 DESK_ID = "desk_01"
@@ -15,8 +16,10 @@ def load_objects(path):
     return json.loads(Path(path).read_text())
 
 
-def _to_node(o):
-    """S2 ObjectInstance3D -> node attributes. Uses the map frame (z up); S2 box dims are [W, H, D]."""
+def _to_node(o, rotate=None):
+    """S2 ObjectInstance3D -> node attributes. Uses the map frame (z up); S2 box dims are [W, H, D].
+
+    `rotate` (from desk_alignment) re-expresses the centre in the desk-aligned frame."""
     box = o["box_map"]
     w, h, d = box["dimensions"]
     labels = o.get("label_candidates") or [o["semantic_label"]]
@@ -24,7 +27,7 @@ def _to_node(o):
     return {
         "persistent_object_id": o.get("persistent_id") or o["object_id"],
         "names": [{"text": t, "score": round(score if i == 0 else score * 0.8, 3)} for i, t in enumerate(labels)],
-        "center": list(box["center"]),
+        "center": rotate(box["center"]) if rotate else list(box["center"]),
         "size": [w, d, h],                 # S5 contract: [width_x, depth_y, height_z]
         "yaw": box.get("yaw", 0.0),
         "cam_x": o["centroid"][0],
@@ -41,7 +44,9 @@ class SceneGraphEngine:
     virtual node whose top surface sits at `desk_top_z` in the map frame (0.0 for S2's map).
     """
 
-    def __init__(self, desk_top_z=0.0, desk_size=(1.2, 0.8, 0.04), session_id="s4_session"):
+    def __init__(self, desk_top_z=0.0, desk_size=(1.2, 0.8, 0.04), session_id="s4_session",
+                 use_support_plane=True):
+        self.desk_top_z, self.use_support_plane, self.alignment = desk_top_z, use_support_plane, None
         self.graph = nx.MultiDiGraph()   # directed, one edge per predicate between a pair
         self.session_id = session_id
         self.timestamp = None
@@ -60,9 +65,14 @@ class SceneGraphEngine:
         ts = s2_frame.get("timestamp", 0.0)
         self.timestamp = ts
         seen = {DESK_ID}
-        self._upsert(DESK_ID, dict(self._desk), ts)
+        align = desk_alignment(s2_frame) if self.use_support_plane else None
+        rotate, self.alignment = align if align else (None, {"method": "desk_top_z", "desk_top_z": self.desk_top_z})
+        desk = dict(self._desk)
+        if rotate:                                   # desk is z = 0 by construction
+            desk["center"] = [0.6, 0.0, -desk["size"][2] / 2]
+        self._upsert(DESK_ID, desk, ts)
         for o in s2_frame["objects"]:
-            attrs = _to_node(o)
+            attrs = _to_node(o, rotate)
             nid = attrs["persistent_object_id"]
             seen.add(nid)
             self._upsert(nid, attrs, ts)
@@ -137,7 +147,7 @@ class SceneGraphEngine:
         edges = sorted(self._edges.values(), key=lambda e: (e["source"], e["predicate"], e["target"]))
         return {
             "schema_version": SCHEMA_VERSION, "sample": False, "session_id": self.session_id,
-            "frame": "map", "units": "meters", "size_order": "[width_x, depth_y, height_z]",
+            "frame": "map", "desk_alignment": self.alignment, "units": "meters", "size_order": "[width_x, depth_y, height_z]",
             "timestamp": self.timestamp, "nodes": nodes, "edges": edges,
         }
 
