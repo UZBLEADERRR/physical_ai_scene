@@ -96,6 +96,11 @@ pre { background: var(--void); color: var(--code-ink); font-family: var(--mono);
 .inline { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
 .inline input[type=number] { width: 80px; font: 13px var(--mono); padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
 
+.cap3d { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.cap3d h2 { margin-bottom: 4px; }
+.cap3d .sub { color: var(--muted); font-size: 13.5px; max-width: 80ch; }
+#c3d { cursor: grab; touch-action: none; aspect-ratio: 1100 / 560; }
+#c3d:active { cursor: grabbing; }
 @media (max-width: 820px) { .panes, .lower { grid-template-columns: 1fr; } .load { grid-template-columns: 1fr; } .btns { justify-content: flex-start; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style></head><body>
@@ -146,11 +151,20 @@ pre { background: var(--void); color: var(--code-ink); font-family: var(--mono);
     </div>
   </section>
 
+  <section class="viewer" aria-label="S2 3D sahna">
+    <div class="cap3d">
+      <div><h2>S2 · 3D sahna</h2><p class="sub">Depth → 3D nuqtalar, stol tekisligi (RANSAC), S3 maskasi bo‘yicha obyekt nuqtalari va stolga tik 3D box’lar. Sichqoncha bilan aylantiring, g‘ildirak bilan yaqinlashtiring.</p></div>
+      <div class="btns"><button id="view3dReset" type="button">Ko‘rinishni tiklash</button></div>
+    </div>
+    <canvas id="c3d" width="1100" height="560" aria-label="3D nuqtalar bulutini aylantirish mumkin bo‘lgan ko‘rinish"></canvas>
+    <div class="legend" id="legend3d"></div>
+  </section>
+
   <section class="card" id="s3card">
     <h2>S3 → S2: shu kadrdagi obyektlar</h2>
-    <p class="sub">S3 maskasi ichidagi depth piksellari 3D ga aylantiriladi (S2 ning asosiy qadami). Brauzerdagi soddalashtirilgan hisob: stol tekisligi, outlier filtri va shaffoflikning “sizib ketish” belgisi faqat Python pipeline’da.</p>
+    <p class="sub">Har bir S3 maskasi uchun S2 qadamlari brauzerda: maska ichidagi depth → 3D nuqtalar → stol nuqtalarini olib tashlash → shovqin filtri → markaz va 3D box. Shisha uchun ikki belgi: <b>teshik</b> (depth bor &lt; 50 %) va <b>stolga sizib ketish</b> (depth nuqtalarining &gt; 35 % i stol sirtida).</p>
     <div class="inline" id="s3map"></div>
-    <div class="scroll"><table id="dets"><thead><tr><th>Obyekt</th><th>Ishonch</th><th>Maska px</th><th>Depth bor</th><th>Median Z</th><th>3D markaz X · Y · Z (m)</th><th>Holat</th></tr></thead><tbody></tbody></table></div>
+    <div class="scroll"><table id="dets"><thead><tr><th>Obyekt</th><th>Ishonch</th><th>Depth bor</th><th>Stolga sizish</th><th>3D markaz X · Y · Z (m)</th><th>Box W × D × H (sm)</th><th>Holat</th></tr></thead><tbody></tbody></table></div>
   </section>
 
   <div class="lower">
@@ -656,6 +670,7 @@ async function drawRgb(ref) {
     const m = decodeCompressed(buf);
     const bmp = await createImageBitmap(new Blob([m.data], { type: m.format.includes("png") ? "image/png" : "image/jpeg" }));
     cv.width = bmp.width; cv.height = bmp.height; ctx.drawImage(bmp, 0, 0);
+    state.rgbPix = ctx.getImageData(0, 0, cv.width, cv.height);
     return { stamp: m.header.stamp, w: bmp.width, h: bmp.height, enc: m.format };
   }
   const m = decodeImage(buf); const { width: w, height: h, step, data, encoding: e } = m;
@@ -669,7 +684,7 @@ async function drawRgb(ref) {
     else { o[d] = data[s]; o[d + 1] = data[s + 1]; o[d + 2] = data[s + 2]; }
     o[d + 3] = 255;
   }
-  ctx.putImageData(img, 0, 0);
+  ctx.putImageData(img, 0, 0); state.rgbPix = img;
   return { stamp: m.header.stamp, w, h, enc: e };
 }
 function drawDepth(ref) {
@@ -694,7 +709,74 @@ function drawDepth(ref) {
   ctx.putImageData(img, 0, 0);
   $("dMin").textContent = `${fmt(lo, 2)} m`; $("dMax").textContent = `${fmt(hi, 2)} m`;
   state.depthImg = { z, w, h };
+  state.plane = fitPlane(z, w, h);
   return { stamp: m.header.stamp, valid: valid / z.length, enc: e, w, h };
+}
+/* ---------------- S2 geometry in the browser ---------------- */
+function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
+function deproj(u, v, Z, K) { return [(u - K.cx) * Z / K.fx, (v - K.cy) * Z / K.fy, Z]; }
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const norm = (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+function fitPlane(z, w, h) {
+  // RANSAC on a subsample: the desk is the dominant plane. Normal points to the camera (d > 0).
+  const K = intrinsicsFor(w, h); if (!K) return null;
+  const pts = []; const step = Math.max(2, Math.round(Math.sqrt(w * h / 6000)));
+  for (let v = 0; v < h; v += step) for (let u = 0; u < w; u += step) { const Z = z[v * w + u]; if (Z > 0) pts.push(deproj(u, v, Z, K)); }
+  if (pts.length < 100) return null;
+  const r = rng(7); let best = null, bestN = 0; const thr = 0.008;
+  for (let it = 0; it < 250; it++) {
+    const a = pts[(r() * pts.length) | 0], b = pts[(r() * pts.length) | 0], c = pts[(r() * pts.length) | 0];
+    const n0 = cross(sub(b, a), sub(c, a)); const l = Math.hypot(...n0); if (l < 1e-9) continue;
+    let n = n0.map((x) => x / l), d = -dot(n, a); if (d < 0) { n = n.map((x) => -x); d = -d; }
+    let cnt = 0; for (const p of pts) if (Math.abs(dot(n, p) + d) < thr) cnt++;
+    if (cnt > bestN) { bestN = cnt; best = { n, d }; }
+  }
+  if (!best || bestN < 0.15 * pts.length) return null;
+  // basis aligned with the desk: up = normal, fwd = camera z projected on the desk, right = fwd × up
+  const up = best.n, fwd = norm(sub([0, 0, 1], up.map((x) => x * up[2]))), right = cross(fwd, up);
+  return { ...best, up, fwd, right, inliers: bestN / pts.length };
+}
+const toWorld = (p, P) => [dot(p, P.right), dot(p, P.fwd), dot(p, P.up) + P.d]; // (right, forward, height above desk)
+function erode(m, w, h, it) {
+  let a = m;
+  for (let k = 0; k < it; k++) { const b = new Uint8Array(a.length);
+    for (let v = 1; v < h - 1; v++) for (let u = 1; u < w - 1; u++) { const i = v * w + u; b[i] = a[i] & a[i - 1] & a[i + 1] & a[i - w] & a[i + w]; }
+    a = b; }
+  return a;
+}
+function pct(arr, q) { const s = Float64Array.from(arr).sort(); return s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : NaN; }
+function objectGeometry(mask, D, K, P) {
+  // Mirrors src/fusion_3d: reliability cues on the eroded interior, desk removal, outlier filter, upright box.
+  let n = 0, nv = 0; for (let i = 0; i < mask.length; i++) if (mask[i]) { n++; if (D.z[i] > 0) nv++; }
+  let inner = erode(mask, D.w, D.h, 3); let ni = 0; for (let i = 0; i < inner.length; i++) ni += inner[i];
+  if (ni < 20) { inner = mask; ni = n; }
+  let iv = 0, leak = 0; const pts = [];
+  for (let v = 0; v < D.h; v++) for (let u = 0; u < D.w; u++) {
+    const i = v * D.w + u; if (!inner[i]) continue; const Z = D.z[i]; if (!(Z > 0)) continue; iv++;
+    const p = deproj(u, v, Z, K); const hgt = P ? dot(P.up, p) + P.d : 1;
+    if (hgt < 0.012) leak++; else if (hgt > 0.008) pts.push(p);
+  }
+  const ivr = ni ? iv / ni : 0, leakR = iv ? leak / iv : 0, genuine = ivr * (1 - leakR);
+  const status = ivr < 0.05 ? "no_depth" : (ivr < 0.5 || leakR > 0.35) ? "transparent_suspected" : "ok";
+  const out = { n, valid: n ? nv / n : 0, ivr, leakR: P ? leakR : null, genuine, status, pts: [], box: null, centroid: null };
+  if (pts.length < 30 || genuine < 0.10) return out;
+  // outlier filter: keep points within 3·MAD of the median depth
+  const zs = pts.map((p) => p[2]); const med = pct(zs, 0.5); const mad = pct(zs.map((x) => Math.abs(x - med)), 0.5) || 0.005;
+  const keep = pts.filter((p) => Math.abs(p[2] - med) < 3 * 1.4826 * mad + 0.01);
+  if (keep.length < 30) return out;
+  out.pts = keep; out.centroid = [0, 1, 2].map((k) => keep.reduce((s, p) => s + p[k], 0) / keep.length);
+  if (!P) return out;
+  // upright box: PCA yaw on the desk plane, 2–98 % extents, from the desk up to the top
+  const W = keep.map((p) => toWorld(p, P)); const mx = W.reduce((s, p) => s + p[0], 0) / W.length, my = W.reduce((s, p) => s + p[1], 0) / W.length;
+  let sxx = 0, syy = 0, sxy = 0; for (const p of W) { const a = p[0] - mx, b = p[1] - my; sxx += a * a; syy += b * b; sxy += a * b; }
+  const yaw = 0.5 * Math.atan2(2 * sxy, sxx - syy), c = Math.cos(yaw), s = Math.sin(yaw);
+  const A = W.map((p) => (p[0] - mx) * c + (p[1] - my) * s), B = W.map((p) => -(p[0] - mx) * s + (p[1] - my) * c);
+  const a0 = pct(A, 0.02), a1 = pct(A, 0.98), b0 = pct(B, 0.02), b1 = pct(B, 0.98), top = pct(W.map((p) => p[2]), 0.98);
+  const ca = (a0 + a1) / 2, cb = (b0 + b1) / 2;
+  out.box = { cx: mx + ca * c - cb * s, cy: my + ca * s + cb * c, yaw, w: a1 - a0, d: b1 - b0, h: Math.max(top, 0.005) };
+  return out;
 }
 function intrinsicsFor(w, h) {
   if (!state.cam) return null;
@@ -782,14 +864,14 @@ async function maskAt(fr, path, w, h) {
 }
 async function renderS3(bagIdx, token) {
   const tb = $("dets").tBodies[0];
-  if (!state.s3) { tb.innerHTML = `<tr><td colspan="7" class="empty">S3 natijasi yuklanmagan.</td></tr>`; return; }
+  if (!state.s3) { tb.innerHTML = `<tr><td colspan="7" class="empty">S3 natijasi yuklanmagan.</td></tr>`; state.objs3d = []; draw3D(); return; }
   const fr = s3FrameFor(bagIdx); const D = state.depthImg;
   if (!fr) { tb.innerHTML = `<tr><td colspan="7" class="empty">Bu bag kadri (${bagIdx}) uchun S3 kadri yo‘q. S3 ${state.s3.frames.length} ta kadr; siljishni tekshiring.</td></tr>`;
-             $("s3Info").textContent = "S3: bu kadrda yo‘q"; return; }
+             $("s3Info").textContent = "S3: bu kadrda yo‘q"; state.objs3d = []; draw3D(); return; }
   const dets = (fr.obs.detections || []).filter((d) => d.mask_status === "ok" && d.mask);
   const cv = $("rgbCanvas"), ctx = cv.getContext("2d");
   const intr = D ? intrinsicsFor(D.w, D.h) : null;
-  const rows = []; const overlay = $("showMasks").checked;
+  const rows = [], objs = []; const overlay = $("showMasks").checked;
   const img = overlay ? ctx.getImageData(0, 0, cv.width, cv.height) : null;
   let sizeNote = "";
   for (const [k, det] of dets.entries()) {
@@ -801,24 +883,20 @@ async function renderS3(bagIdx, token) {
       const [r, g, b] = [1, 3, 5].map((o) => parseInt(col.slice(o, o + 2), 16));
       for (let i = 0; i < rgbM.m.length; i++) if (rgbM.m[i]) { const p = i * 4; img.data[p] = img.data[p] * 0.5 + r * 0.5; img.data[p + 1] = img.data[p + 1] * 0.5 + g * 0.5; img.data[p + 2] = img.data[p + 2] * 0.5 + b * 0.5; }
     }
-    // S2 core step on the depth image
-    let n = 0, nv = 0, sx = 0, sy = 0, sz = 0; const zs = [];
-    if (D && intr) {
-      const dm = await maskAt(fr, det.mask, D.w, D.h);
-      for (let v = 0; v < D.h; v++) for (let u = 0; u < D.w; u++) {
-        const i = v * D.w + u; if (!dm.m[i]) continue; n++;
-        const Z = D.z[i]; if (!(Z > 0)) continue; nv++; zs.push(Z);
-        sx += (u - intr.cx) * Z / intr.fx; sy += (v - intr.cy) * Z / intr.fy; sz += Z;
-      }
-    }
-    zs.sort((a, b) => a - b);
-    const valid = n ? nv / n : 0;
-    const [lvl, note] = !n ? ["warn", "maska bo‘sh"] : valid < 0.05 ? ["bad", "depth yo‘q"] : valid < 0.5 ? ["warn", "teshik · shaffof?"] : ["ok", "ok"];
-    rows.push(`<tr><td><span class="sw" style="background:${col}"></span>${esc((det.labels || ["?"])[0])}</td>
-      <td class="n">${fmt(det.detector_score, 2)}</td><td class="n">${n}</td><td class="n">${fmt(valid * 100, 0)} %</td>
-      <td class="n">${zs.length ? fmt(zs[Math.floor(zs.length / 2)], 3) + " m" : "—"}</td>
-      <td class="n">${nv ? `${fmt(sx / nv, 3)} · ${fmt(sy / nv, 3)} · ${fmt(sz / nv, 3)}` : "—"}</td>
-      <td><span class="pill ${lvl}">${note}</span></td></tr>`);
+    // S2 steps on the depth image
+    let g = null;
+    if (D && intr) { const dm = await maskAt(fr, det.mask, D.w, D.h); g = objectGeometry(dm.m, D, intr, state.plane); }
+    if (token !== state.renderToken) return;
+    const label = (det.labels || ["?"])[0];
+    if (g) objs.push({ label, col, ...g });
+    const [lvl, note] = !g || !g.n ? ["warn", "maska bo‘sh"] : g.status === "no_depth" ? ["bad", "depth yo‘q"]
+      : g.status === "transparent_suspected" ? ["warn", g.leakR > 0.35 ? "shaffof · stol ko‘rinadi" : "shaffof · teshik"] : ["ok", "ok"];
+    const geom = g?.box ? `${fmt(g.box.w * 100, 1)} × ${fmt(g.box.d * 100, 1)} × ${fmt(g.box.h * 100, 1)}` : (g?.centroid ? "tekislik yo‘q" : "nuqta yetarli emas");
+    rows.push(`<tr><td><span class="sw" style="background:${col}"></span>${esc(label)}</td>
+      <td class="n">${fmt(det.detector_score, 2)}</td><td class="n">${g ? fmt(g.valid * 100, 0) + " %" : "—"}</td>
+      <td class="n">${g && g.leakR !== null ? fmt(g.leakR * 100, 0) + " %" : "—"}</td>
+      <td class="n">${g?.centroid ? g.centroid.map((x) => fmt(x, 3)).join(" · ") : "—"}</td>
+      <td class="n">${geom}</td><td><span class="pill ${lvl}">${note}</span></td></tr>`);
   }
   if (overlay) ctx.putImageData(img, 0, 0);
   if (overlay) for (const [k, det] of dets.entries()) {
@@ -831,8 +909,88 @@ async function renderS3(bagIdx, token) {
     ctx.fillStyle = "#ffffff"; ctx.fillText(label, x1 * sxr + 4, Math.max(fs, y1 * syr - 4));
   }
   tb.innerHTML = rows.join("") || `<tr><td colspan="7" class="empty">Bu S3 kadrida obyekt yo‘q.</td></tr>`;
+  state.objs3d = objs; draw3D();
   $("s3Info").textContent = `S3 ${fr.dir} · ${dets.length} obyekt${sizeNote}`;
 }
+
+
+/* ---------------- 3D view (no library: points + boxes, orbit with the mouse) ---------------- */
+const view = { yaw: 0, pitch: 0.55, zoom: 1, drag: null };
+function sceneCloud() {
+  const D = state.depthImg, P = state.plane; if (!D || !P) return null;
+  const K = intrinsicsFor(D.w, D.h); if (!K) return null;
+  const step = Math.max(1, Math.round(Math.sqrt(D.w * D.h / 26000)));
+  const pix = state.rgbPix; const sxr = pix ? pix.width / D.w : 1, syr = pix ? pix.height / D.h : 1;
+  const pts = [];
+  for (let v = 0; v < D.h; v += step) for (let u = 0; u < D.w; u += step) {
+    const Z = D.z[v * D.w + u]; if (!(Z > 0)) continue;
+    const w = toWorld(deproj(u, v, Z, K), P);
+    if (w[2] < -0.05 || w[2] > 0.6) continue; // keep the desk and what stands on it
+    let col = [150, 150, 150];
+    if (pix) { const i = (Math.min(pix.height - 1, Math.round(v * syr)) * pix.width + Math.min(pix.width - 1, Math.round(u * sxr))) * 4; col = [pix.data[i], pix.data[i + 1], pix.data[i + 2]]; }
+    pts.push([w[0], w[1], w[2], col]);
+  }
+  return pts;
+}
+function draw3D() {
+  const cv = $("c3d"); const ctx = cv.getContext("2d");
+  const css = getComputedStyle(document.documentElement);
+  const W = cv.width, H = cv.height; ctx.fillStyle = css.getPropertyValue("--void").trim() || "#111"; ctx.fillRect(0, 0, W, H);
+  const P = state.plane; const scene = sceneCloud();
+  const lg = $("legend3d");
+  if (!scene || !scene.length) { ctx.fillStyle = "#9aa"; ctx.font = "15px sans-serif"; ctx.fillText(P ? "Depth nuqtalari yo‘q" : "Stol tekisligi topilmadi yoki camera_info yo‘q", 24, 40); lg.textContent = ""; return; }
+  // centre on the objects if any, else on the desk points
+  const objs = state.objs3d || [];
+  const ctrPts = objs.flatMap((o) => o.pts.map((p) => toWorld(p, P)));
+  const ref = ctrPts.length ? ctrPts : scene;
+  const c = [0, 1, 2].map((k) => ref.reduce((s, p) => s + p[k], 0) / ref.length); c[2] = Math.max(c[2], 0.05);
+  const span = Math.max(0.25, ...[0, 1].map((k) => pct(ref.map((p) => Math.abs(p[k] - c[k])), 0.98) * 2.4));
+  const scale = Math.min(W, H) / span * view.zoom;
+  const cy = Math.cos(view.yaw), sy = Math.sin(view.yaw), cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
+  const proj = (p) => { const x = p[0] - c[0], y = p[1] - c[1], z = p[2] - c[2];
+    const x1 = x * cy - y * sy, y1 = x * sy + y * cy; const up = y1 * sp + z * cp, depth = y1 * cp - z * sp;
+    return [W / 2 + x1 * scale, H * 0.55 - up * scale, depth]; };
+  // scene points (desk + background), faded
+  const sz = Math.max(1.5, scale * 0.004);
+  for (const p of scene) { const q = proj(p); ctx.fillStyle = `rgba(${p[3][0]},${p[3][1]},${p[3][2]},0.55)`; ctx.fillRect(q[0], q[1], sz, sz); }
+  // object points + boxes
+  const labels = [];
+  for (const o of objs) {
+    ctx.fillStyle = o.col;
+    const stepO = Math.max(1, Math.floor(o.pts.length / 2500));
+    for (let i = 0; i < o.pts.length; i += stepO) { const q = proj(toWorld(o.pts[i], P)); ctx.fillRect(q[0], q[1], sz + 0.5, sz + 0.5); }
+    if (!o.box) continue;
+    const b = o.box, cc = Math.cos(b.yaw), ss = Math.sin(b.yaw);
+    const corner = (sa, sb, hz) => [b.cx + sa * b.w / 2 * cc - sb * b.d / 2 * ss, b.cy + sa * b.w / 2 * ss + sb * b.d / 2 * cc, hz];
+    const base = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+    const cs = [...base.map(([a, bb]) => corner(a, bb, 0)), ...base.map(([a, bb]) => corner(a, bb, b.h))].map(proj);
+    ctx.strokeStyle = o.col; ctx.lineWidth = 2; ctx.beginPath();
+    for (const [i, j] of [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]]) { ctx.moveTo(cs[i][0], cs[i][1]); ctx.lineTo(cs[j][0], cs[j][1]); }
+    ctx.stroke();
+    labels.push({ top: proj([b.cx, b.cy, b.h]), text: `${o.label}  ${fmt(b.w * 100, 0)}×${fmt(b.d * 100, 0)}×${fmt(b.h * 100, 0)} sm`, ok: o.status === "ok" });
+  }
+  // labels last so no point cloud covers them; nudge apart when they overlap
+  ctx.font = "600 13px " + getComputedStyle(document.body).fontFamily; const placed = [];
+  for (const l of labels.sort((p, q) => p.top[1] - q.top[1])) {
+    const tw = ctx.measureText(l.text).width; let x = l.top[0] - tw / 2, y = l.top[1] - 26;
+    for (const r of placed) if (x < r.x + r.w && x + tw + 12 > r.x && y < r.y + 22 && y + 22 > r.y) y = r.y + 24;
+    placed.push({ x, y, w: tw + 12 });
+    ctx.fillStyle = "rgba(10,12,13,0.8)"; ctx.fillRect(x - 6, y, tw + 12, 20);
+    ctx.fillStyle = l.ok ? "#ffffff" : "#f2c46b"; ctx.fillText(l.text, x, y + 15);
+  }
+  lg.innerHTML = `<span>stol tekisligi: ${fmt(P.inliers * 100, 0)} % nuqtalar · normal [${P.up.map((x) => fmt(x, 2)).join(", ")}] · kameragacha ${fmt(P.d, 2)} m</span>`
+    + (objs.length ? ` <span>· ${objs.filter((o) => o.box).length}/${objs.length} obyektga 3D box</span>` : " <span>· S3 natijasi yuklansa obyektlar chiqadi</span>");
+}
+(function orbit() {
+  const cv = $("c3d");
+  cv.addEventListener("pointerdown", (e) => { view.drag = { x: e.clientX, y: e.clientY, yaw: view.yaw, pitch: view.pitch }; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener("pointermove", (e) => { if (!view.drag) return;
+    view.yaw = view.drag.yaw + (e.clientX - view.drag.x) * 0.008;
+    view.pitch = Math.max(-0.2, Math.min(1.5, view.drag.pitch + (e.clientY - view.drag.y) * 0.006)); draw3D(); });
+  cv.addEventListener("pointerup", () => { view.drag = null; });
+  cv.addEventListener("wheel", (e) => { e.preventDefault(); view.zoom = Math.max(0.4, Math.min(6, view.zoom * (e.deltaY < 0 ? 1.12 : 0.89))); draw3D(); }, { passive: false });
+  $("view3dReset").addEventListener("click", () => { Object.assign(view, { yaw: 0, pitch: 0.55, zoom: 1 }); draw3D(); });
+})();
 
 /* ---------------- interaction ---------------- */
 function readout(ev) {
