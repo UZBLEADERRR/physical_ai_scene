@@ -1,12 +1,19 @@
 """Unit tests for verifier.py and the parser clean-up (no running LLM needed). Run: python3 test_verifier.py"""
 
+import copy
+import json
 import sys
+import tempfile
+import threading
 from pathlib import Path
 
 from query_parser import _normalize
-from verifier import filter_not_near, find_closest, find_nodes_by_name, has_edge, load_graph, locate
+from verifier import GraphError, filter_not_near, find_closest, find_nodes_by_name, has_edge, load_graph, locate
 
-graph = load_graph(Path(__file__).parent / "sample_scene_graph.json")
+HERE = Path(__file__).parent
+graph = load_graph(HERE / "sample_scene_graph.json")
+s4_graph = load_graph(HERE / "s4_graph_frame_000.json")
+TMP = Path(tempfile.mkdtemp())
 
 
 def test_closest_free_chair():
@@ -98,6 +105,51 @@ def test_normalize_handles_strings_instead_of_lists():
     fixed = _normalize({"target": "chair", "reference": "laptop", "relations": [],
                         "negative_constraints": [{"relation": "near", "object": "laptop"}]})
     assert fixed["reference"] == ""
+
+
+def test_s4_graph_closest_and_locate():
+    r = find_closest(s4_graph, "laptop")
+    assert r["verification_status"] and r["target_id"] == "glass_0"
+    r = locate(s4_graph, "multimeter")
+    assert r["target_id"] == "multimeter_0" and "desk_01" in r["computed_facts"]
+
+
+def test_s4_graph_ambiguous_name_gives_warning():
+    r = locate(s4_graph, "cup")
+    assert r["verification_status"] and any("2 objects match" in w for w in r["warnings"])
+
+
+def test_s4_graph_has_no_free_state_so_free_filter_says_cannot_determine():
+    r = find_closest(s4_graph, "laptop", only_free=True)
+    assert not r["verification_status"] and r["target_id"] is None
+
+
+def test_missing_confidence_does_not_crash():
+    broken = copy.deepcopy(s4_graph)
+    for node in broken["nodes"]:
+        node["confidence"] = None
+    r = find_closest(broken, "laptop")
+    assert r["verification_status"] and r["confidence"] == 0.0
+    assert any("no confidence value" in w for w in r["warnings"])
+    assert filter_not_near(broken, "book", [{"relation": "near", "object": "laptop"}])["verification_status"]
+
+
+def test_missing_or_broken_graph_file_raises_graph_error():
+    bad = TMP / "bad.json"
+    bad.write_text("{not json")
+    for path in (TMP / "missing.json", bad):
+        try:
+            load_graph(path)
+        except GraphError:
+            continue
+        raise AssertionError(f"no GraphError for {path.name}")
+
+
+def test_half_written_graph_file_is_retried():
+    live = TMP / "live.json"
+    live.write_text('{"nodes": [')
+    threading.Timer(0.15, lambda: live.write_text(json.dumps(s4_graph))).start()
+    assert len(load_graph(live)["nodes"]) == len(s4_graph["nodes"])
 
 
 if __name__ == "__main__":
