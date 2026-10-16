@@ -55,7 +55,7 @@ Mock results (`python scripts/make_s2_week6_7_report.py` → `docs/s2/week6_7/`)
 | S1 | `depth.png` (uint16 mm) or `depth.npy` (float m) | **must be aligned to colour** (RealSense `align_depth.enable:=true`; ZED Mini depth is already registered to the left image) |
 | S1 | `camera_intrinsics.yaml` | flat `fx/fy/cx/cy/width/height` or ROS `camera_info` dump (`k:`) |
 | S1 | `frame_meta.json` (optional) | `timestamp`, `T_map_camera` (4x4 optical→map). Fallback: `tf_map_camera_link` in `configs/fusion_3d.yaml` |
-| S3 | `observation.json` + `masks/*.png` | S3's `s3-semantic-draft-0.1` contract (`src/open_vocab/open_vocab/contract.py`): `detections[]` with `detection_id`, `bbox` (xyxy px), `labels`, `detector_score`, `mask` (relative PNG 0/255), `mask_status`. Detections with `mask_status != "ok"` are skipped and listed under `rejected`. Pass a path from an S3 run with `--observations output/s3_semantic/<run>/frame_000000/observation.json` |
+| S3 | `observation.json` + `masks/*.png` | S3's `s3-semantic-draft-0.1` contract (`src/open_vocab/contract.py`): `detections[]` with `detection_id`, `bbox` (xyxy px), `labels`, `detector_score`, `mask` (relative PNG 0/255), `mask_status`. Detections with `mask_status != "ok"` are skipped and listed under `rejected`. Pass a path from an S3 run with `--observations output/s3_semantic/<run>/frame_000000/observation.json` |
 
 ## Pipeline (`src/fusion_3d/pipeline.py`)
 

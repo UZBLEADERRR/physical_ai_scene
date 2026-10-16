@@ -163,7 +163,8 @@ def find_closest(graph, reference_text, target_text="", only_free=False, negativ
     if not refs:
         return fail(f"no node matches reference '{reference_text}'", "the reference object is not in the scene graph.")
     ref = refs[0]
-    pool = find_nodes_by_name(graph, target_text) if target_text else graph["nodes"]
+    # "what is closest to X?" compares real objects; virtual nodes (S4's desk plane) only when named
+    pool = find_nodes_by_name(graph, target_text) if target_text else [n for n in graph["nodes"] if not n.get("virtual")]
     candidates = [c for c in pool if c["id"] != ref["id"]]
     if only_free:
         candidates = [c for c in candidates if c.get("state") == "free"]

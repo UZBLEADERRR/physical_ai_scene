@@ -65,15 +65,15 @@ A frame slider replays the sequence; the sidebar shows stage latency and which I
 
 ## Metrics (Section 24) — current numbers, mock sequence, offline parser
 
-`python -m src.evaluation.metrics` with `configs/s7_eval_queries.json` (10 questions, 6 with a wrong LLM answer):
+`python -m src.evaluation.metrics` with `configs/s7_eval_queries.json` (11 questions, 7 with a wrong LLM answer):
 
 | Metric | Value | How it is computed |
 |---|---|---|
-| Pipeline latency S1→S6 | ≈ 840 ms/frame (≈ 1.2 FPS, CPU) | mean of per-frame stage timings; S2 fusion is ≈ 97 % of it |
-| Sim-to-real success | 5 / 5 | validated goals the virtual agent reached (≤ 5 cm) without entering an exclusion zone |
+| Pipeline latency S1→S6 | ≈ 0.8 s/frame (≈ 1.2–1.3 FPS, CPU) | mean of per-frame stage timings; S2 fusion is ≈ 97 % of it |
+| Sim-to-real success | 6 / 6 | validated goals the virtual agent reached (≤ 5 cm) without entering an exclusion zone |
 | Unsafe goals rejected | 2 / 2 | "go to the glass" and "closest to the laptop" cross the laptop zone → `validated: false` |
-| Hallucination catch rate | 6 / 6 | wrong LLM answers (`llm_claim`) that the verifier overrode or refused |
-| Answer accuracy | 10 / 10 | verifier target label = expected label (or correctly "Cannot determine") |
+| Hallucination catch rate | 7 / 7 | wrong LLM answers (`llm_claim`) that the verifier overrode or refused |
+| Answer accuracy | 11 / 11 | verifier target label = expected label (or correctly "Cannot determine") |
 | Tracking ID switches | 0 | objects that received more than one persistent ID |
 | Contract errors | 0 | hand-overs that broke a JSON contract |
 
@@ -102,12 +102,20 @@ come from the same command on S1's recordings with `--parser ollama` and `--s3 l
 
 ## Integration findings for the team (from merging all branches, Week 6)
 
-| Module | Finding | Suggested fix |
+Fixed by S7 in the integration branch (small, each covered by a test — owners please review):
+
+| Module | Finding | Fix |
 |---|---|---|
-| S1 | No `s1-sensors` branch yet. The pipeline needs `camera_intrinsics.yaml` and `T_map_camera` (or the static TF in `configs/fusion_3d.yaml`) for real bags. | Push the recording scripts and one short bag + calibration to Drive. |
-| S3 | Stray empty file `tests/test data` (space in the name). S3 has no README with run commands. | Delete the file; add `src/open_vocab/README.md`. |
-| S2 | README still points at `src/open_vocab/open_vocab/contract.py`; S3 moved it to `src/open_vocab/contract.py`. | Update the path. |
-| S4 | Nodes are exported without `yaw`, but `size` keeps S2's box axes (not map x/y). Downstream footprints are therefore approximate; S7's exclusion zones use the longer side to stay safe. | Export `yaw` per node (S5 ignores unknown fields). |
-| S5 | The virtual `desk_01` node competes in "closest object" questions (e.g. "what is closest to the book?" can answer `desk_01`). | Skip `virtual` nodes as candidates unless the question names the desk. |
-| S5 | Flat imports (`from verifier import …`) prevent `import src.reasoning`. S7 loads it through `s5_adapter.py`. | Optional: switch to relative imports. |
-| S6 | No branch yet. `src/integration/s6_placeholder.py` implements the Week-5 behaviour (15 cm gate, N-frame memory, straight path, 4-field ActionGoal) so the system runs today. | Merge `src/tracking` + `src/planning` with the same inputs/outputs; S7 will switch the launch file to them. |
+| S3 | Stray empty file `tests/test data` (space in the name); no README with run commands. | File removed; `src/open_vocab/README.md` drafted from the code. |
+| S2 | README and `mock_data.py` pointed at `src/open_vocab/open_vocab/…`; S3 moved the files to `src/open_vocab/`. | Paths updated. |
+| S4 | Nodes were exported without `yaw`, while `size` keeps S2's box axes, so downstream footprints were wrong for rotated objects (the laptop is turned ~82°). | `engine.export()` now writes `yaw` per node; `outputs/scene_graph/frame_000_scene_graph.json` regenerated. S6 zones use it. |
+| S5 | The virtual `desk_01` node won "what is closest to the book?". | `find_closest` skips `virtual` nodes unless the question names them; new test `test_virtual_desk_is_not_a_closest_object`. |
+| S7 | Pipeline used S3's `tabletop.json` (food prompts) for `--s3 live`. | Switched to `desk.json`. |
+
+Still open (need the owners):
+
+| Module | What is missing |
+|---|---|
+| S1 | No `s1-sensors` branch yet. Real bags need `camera_intrinsics.yaml` and `T_map_camera` (or the static TF in `configs/fusion_3d.yaml`). Please push the recording scripts and one short bag + calibration to Drive. |
+| S6 | No branch yet. `src/integration/s6_placeholder.py` implements the Week-5 behaviour (15 cm gate, N-frame memory, straight path, 4-field ActionGoal) so the system runs today. Merge `src/tracking` + `src/planning` with the same inputs/outputs and S7 switches the launch file to them. |
+| S5 | Optional: flat imports (`from verifier import …`) prevent `import src.reasoning`; S7 loads it through `s5_adapter.py`. |

@@ -69,20 +69,28 @@ def _center(o):
 
 # ---------------------------------------------------------------- action
 def footprint_polygon(node: dict, margin: float = 0.0) -> list:
-    """Conservative XY square around a scene-graph node.
+    """XY footprint of a scene-graph node, inflated by ``margin``.
 
-    S4's nodes carry no yaw, so the box orientation is unknown: the square uses the longer side,
-    which covers the object whatever its rotation on the desk.
+    With S4's ``yaw`` the box is rotated exactly; older graphs without yaw fall back to a square on the
+    longer side, which covers the object whatever its rotation.
     """
     (x, y, _), (w, d, _) = node["pose_map"], node["size"]
-    hx = hy = max(w, d) / 2 + margin
-    return [[round(x - hx, 4), round(y - hy, 4)], [round(x + hx, 4), round(y - hy, 4)],
-            [round(x + hx, 4), round(y + hy, 4)], [round(x - hx, 4), round(y + hy, 4)]]
+    if "yaw" not in node:
+        w = d = max(w, d)
+    yaw = node.get("yaw", 0.0)
+    c, s = math.cos(yaw), math.sin(yaw)
+    hx, hy = w / 2 + margin, d / 2 + margin
+    return [[round(x + c * a - s * b, 4), round(y + s * a + c * b, 4)]
+            for a, b in ((-hx, -hy), (hx, -hy), (hx, hy), (-hx, hy))]
 
 
 def _inside(p, poly):
-    xs, ys = [q[0] for q in poly], [q[1] for q in poly]
-    return min(xs) <= p[0] <= max(xs) and min(ys) <= p[1] <= max(ys)
+    """Point in convex/simple polygon (ray casting)."""
+    inside = False
+    for (x1, y1), (x2, y2) in zip(poly, poly[1:] + poly[:1]):
+        if (y1 > p[1]) != (y2 > p[1]) and p[0] < x1 + (p[1] - y1) * (x2 - x1) / (y2 - y1):
+            inside = not inside
+    return inside
 
 
 def _segment_hits(a, b, poly, step):

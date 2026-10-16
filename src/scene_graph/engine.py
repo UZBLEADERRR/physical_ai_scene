@@ -128,6 +128,7 @@ class SceneGraphEngine:
             node = {
                 "id": nid, "persistent_object_id": a["persistent_object_id"], "names": a["names"],
                 "pose_map": [round(v, 4) for v in a["center"]], "size": [round(v, 4) for v in a["size"]],
+                "yaw": round(a.get("yaw", 0.0), 4),   # rotation of `size` about z; footprint = rotated box
                 "state": a["state"], "first_seen": a["first_seen"], "last_seen": a["last_seen"],
                 "confidence": a["confidence"], "depth_confidence": a["depth_confidence"],
             }

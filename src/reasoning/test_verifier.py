@@ -100,6 +100,17 @@ def test_normalize_handles_strings_instead_of_lists():
     assert fixed["reference"] == ""
 
 
+def test_virtual_desk_is_not_a_closest_object():
+    g = {"nodes": [
+        {"id": "desk_01", "names": [{"text": "desk", "score": 1.0}], "pose_map": [0.6, 0.0, -0.02],
+         "confidence": 1.0, "state": "static", "virtual": True},
+        {"id": "book_01", "names": [{"text": "book", "score": 0.8}], "pose_map": [0.7, -0.26, 0.02], "confidence": 0.9},
+        {"id": "mug_01", "names": [{"text": "mug", "score": 0.9}], "pose_map": [0.52, -0.02, 0.06], "confidence": 0.9},
+    ], "edges": []}
+    assert find_closest(g, "book")["target_id"] == "mug_01"
+    assert find_closest(g, "book", "desk")["target_id"] == "desk_01"
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in sorted(globals().items()):

@@ -4,7 +4,7 @@ stages:
   # S3: "replay" uses the observation.json already in each frame folder (written by S3's run.py
   # or by S2's mock generator). "live" runs YOLO-World + SAM (needs ultralytics + weights).
   s3_mode: replay
-  s3_config: src/open_vocab/configs/tabletop.json
+  s3_config: src/open_vocab/configs/desk.json
   # S5: "auto" uses the local Ollama model if the server answers, else the offline rule parser.
   # "ollama" forces the LLM, "rules" forces the offline parser.
   s5_parser: auto

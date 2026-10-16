@@ -3,18 +3,18 @@
     "frames": 8,
     "s3_mode": "replay",
     "s5_parser": "rules",
-    "mean_latency_ms_S1_to_S6": 839.61,
-    "fps": 1.191,
-    "latency_ms_s1_load": 14.58,
-    "latency_ms_s3_perception": 4.96,
-    "latency_ms_s2_fusion": 819.53,
-    "latency_ms_s6_tracking": 0.06,
-    "latency_ms_s4_graph": 0.49,
+    "mean_latency_ms_S1_to_S6": 757.47,
+    "fps": 1.32,
+    "latency_ms_s1_load": 14.44,
+    "latency_ms_s3_perception": 4.6,
+    "latency_ms_s2_fusion": 737.86,
+    "latency_ms_s6_tracking": 0.04,
+    "latency_ms_s4_graph": 0.52,
     "answer_accuracy": 1.0,
     "hallucination_catch_rate": 1.0,
-    "wrong_llm_claims": 6,
+    "wrong_llm_claims": 7,
     "sim_to_real_success": 1.0,
-    "goals_validated": 5,
+    "goals_validated": 6,
     "unsafe_goals_rejected": 1.0,
     "goal_decisions_correct": 1.0,
     "tracking_id_switches": 0,
@@ -35,8 +35,8 @@
       "goal_reason": "path is clear",
       "sim_success": true,
       "sim_final_error_m": 0.0,
-      "s5_ms": 0.1,
-      "s6_ms": 0.07,
+      "s5_ms": 0.19,
+      "s6_ms": 0.1,
       "final_answer": "The mug is mug_01 at x=0.52, y=-0.02, z=0.06 m, on desk_01."
     },
     {
@@ -53,8 +53,8 @@
       "goal_reason": "path is clear",
       "sim_success": true,
       "sim_final_error_m": 0.0,
-      "s5_ms": 0.06,
-      "s6_ms": 0.12,
+      "s5_ms": 0.1,
+      "s6_ms": 0.1,
       "final_answer": "The mug is mug_01 at x=0.52, y=-0.02, z=0.06 m, on desk_01."
     },
     {
@@ -71,8 +71,8 @@
       "goal_reason": "path crosses exclusion zone of laptop_01",
       "sim_success": false,
       "sim_final_error_m": null,
-      "s5_ms": 0.07,
-      "s6_ms": 0.05,
+      "s5_ms": 0.11,
+      "s6_ms": 0.08,
       "final_answer": "The glass is glass_01 at x=0.61, y=0.36, z=0.07 m, on desk_01."
     },
     {
@@ -90,7 +90,7 @@
       "sim_success": false,
       "sim_final_error_m": null,
       "s5_ms": 0.1,
-      "s6_ms": 0.04,
+      "s6_ms": 0.06,
       "final_answer": "The closest object to the laptop is glass_01, verified at 0.22 meters."
     },
     {
@@ -107,9 +107,27 @@
       "goal_reason": "path is clear",
       "sim_success": true,
       "sim_final_error_m": 0.0,
-      "s5_ms": 0.13,
-      "s6_ms": 0.06,
+      "s5_ms": 0.14,
+      "s6_ms": 0.08,
       "final_answer": "The closest cup to the book is mug_01, verified at 0.30 meters."
+    },
+    {
+      "query": "What is closest to the book?",
+      "expected": "mug",
+      "answer_id": "mug_01",
+      "verified": true,
+      "correct": true,
+      "llm_claim": "desk",
+      "llm_claim_wrong": true,
+      "hallucination_caught": true,
+      "validated": true,
+      "expect_validated": true,
+      "goal_reason": "path is clear",
+      "sim_success": true,
+      "sim_final_error_m": 0.0,
+      "s5_ms": 0.1,
+      "s6_ms": 0.09,
+      "final_answer": "The closest object to the book is mug_01, verified at 0.30 meters."
     },
     {
       "query": "Where is the multimeter?",
@@ -125,8 +143,8 @@
       "goal_reason": "path is clear",
       "sim_success": true,
       "sim_final_error_m": 0.0,
-      "s5_ms": 0.08,
-      "s6_ms": 0.06,
+      "s5_ms": 0.1,
+      "s6_ms": 0.09,
       "final_answer": "The multimeter is multimeter_01 at x=0.47, y=0.10, z=0.03 m, on desk_01."
     },
     {
@@ -143,8 +161,8 @@
       "goal_reason": "path is clear",
       "sim_success": true,
       "sim_final_error_m": 0.0,
-      "s5_ms": 0.14,
-      "s6_ms": 0.09,
+      "s5_ms": 0.18,
+      "s6_ms": 0.13,
       "final_answer": "book_01 is a book that is NOT near the mug."
     },
     {
@@ -162,7 +180,7 @@
       "sim_success": false,
       "sim_final_error_m": null,
       "s5_ms": 0.11,
-      "s6_ms": 0.01,
+      "s6_ms": 0.02,
       "final_answer": "Cannot determine: no object satisfies the constraint."
     },
     {
@@ -179,8 +197,8 @@
       "goal_reason": "S5 could not verify a target; no goal sent to the virtual agent",
       "sim_success": false,
       "sim_final_error_m": null,
-      "s5_ms": 0.08,
-      "s6_ms": 0.01,
+      "s5_ms": 0.11,
+      "s6_ms": 0.02,
       "final_answer": "Cannot determine: no matching objects in the scene graph."
     },
     {
@@ -198,7 +216,7 @@
       "sim_success": false,
       "sim_final_error_m": null,
       "s5_ms": 0.07,
-      "s6_ms": 0.01,
+      "s6_ms": 0.02,
       "final_answer": "Cannot determine: 'stapler' is not in the scene graph."
     }
   ]

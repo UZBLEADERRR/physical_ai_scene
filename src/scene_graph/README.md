@@ -34,7 +34,7 @@ part in `on`. Set `--desk-top-z` if S1's real map frame puts the table elsewhere
 
 ## Output (to S5)
 Same shape as `src/reasoning/sample_scene_graph.json`: `nodes` (`id`, `persistent_object_id`, `names`,
-`pose_map`, `size` as `[width_x, depth_y, height_z]`, `state`, `first_seen`, `last_seen`, `confidence`,
+`pose_map`, `size` as `[width_x, depth_y, height_z]`, `yaw` (rotation of the box about z, rad), `state`, `first_seen`, `last_seen`, `confidence`,
 `depth_confidence`) and `edges` (`source`, `predicate`, `target`, `relation_type`, `evidence`,
 `confidence`, `start_time`, `end_time`).
 

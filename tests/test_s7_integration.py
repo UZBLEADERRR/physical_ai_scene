@@ -2,6 +2,7 @@
 
 import copy
 import json
+import math
 
 import pytest
 
@@ -87,8 +88,16 @@ def test_unverified_answer_gives_no_goal():
     assert goal["validated"] is False and goal["target_pose"] is None
 
 
-def test_zone_covers_rotated_object():
+def test_zone_is_rotated_with_s4_yaw():
     laptop = next(n for n in S4_GRAPH["nodes"] if n["id"] == "laptop_0")
+    poly = footprint_polygon({**laptop, "yaw": math.pi / 2})       # quarter turn swaps the x/y extents
+    xs, ys = [p[0] for p in poly], [p[1] for p in poly]
+    assert max(xs) - min(xs) == pytest.approx(laptop["size"][1], abs=1e-3)
+    assert max(ys) - min(ys) == pytest.approx(laptop["size"][0], abs=1e-3)
+
+
+def test_zone_without_yaw_is_conservative_square():
+    laptop = {k: v for k, v in next(n for n in S4_GRAPH["nodes"] if n["id"] == "laptop_0").items() if k != "yaw"}
     xs = [p[0] for p in footprint_polygon(laptop)]
     assert max(xs) - min(xs) == pytest.approx(max(laptop["size"][:2]), abs=1e-3)
 
