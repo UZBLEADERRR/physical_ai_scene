@@ -190,6 +190,7 @@ def generate(out_dir: str | Path, seed: int = 0, timestamp: float = 1758355200.0
                 noisy[ok] = bg[ok] + rng.normal(0, 1.0, ok.sum()) * (0.0008 + 0.0018 * bg[ok] ** 2)
                 noisy[m & ~ok] = 0.0
     noisy[noisy > 4.0] = 0.0
+    noisy[~hit_ok & (noisy < 0.01)] = 0.0  # rays that hit nothing stay invalid (no near-zero noise)
     depth_mm = np.clip(noisy * 1000.0, 0, 65535).astype(np.uint16)
 
     # ---- S3 mock observations -------------------------------------------
