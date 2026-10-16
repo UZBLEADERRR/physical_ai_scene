@@ -8,7 +8,7 @@ import re
 import sys
 
 from query_parser import parse_query
-from verifier import NEAR_WORDS, fail, filter_not_near, find_closest, load_graph, locate
+from verifier import NEAR_WORDS, GraphError, fail, filter_not_near, find_closest, load_graph, locate
 
 
 def answer_question(question: str) -> dict:
@@ -18,7 +18,12 @@ def answer_question(question: str) -> dict:
         result["llm_parsed_query"] = parsed
         return result
 
-    graph = load_graph()
+    try:
+        graph = load_graph()
+    except GraphError as e:
+        result = fail(str(e), "the scene graph from S4 is not available.")
+        result["llm_parsed_query"] = parsed
+        return result
     target = parsed.get("target", "")
     reference = parsed.get("reference", "")
     negatives = parsed.get("negative_constraints", [])
