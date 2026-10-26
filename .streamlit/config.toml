@@ -1,0 +1,12 @@
+[server]
+headless = true
+maxUploadSize = 4000          # MB; Cloud Run caps HTTP/1 requests at 32 MB -> use a Drive link there
+enableXsrfProtection = true
+fileWatcherType = "none"
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"
+primaryColor = "#2a78d6"

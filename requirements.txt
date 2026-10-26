@@ -26,6 +26,7 @@ ollama>=0.4
 streamlit>=1.35
 plotly>=5.20
 pyvis>=0.3.2
+gdown>=5.0                      # demo: import recordings from Google Drive links
 openpyxl>=3.1                   # experiment_matrix.xlsx
 matplotlib>=3.7                 # S2 reports / figures
 pytest>=7.0

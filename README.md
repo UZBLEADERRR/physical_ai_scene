@@ -12,6 +12,17 @@ Physical AI Scene Understanding — G1 capstone (stationary RGB-D tabletop).
 | Tracking & action | S6 | `src/tracking/`, `src/planning/` |
 | Integration & UI | S7 | `main_pipeline.py`, `src/integration/`, `src/evaluation/`, `dashboard/`, `tools/` — see [docs/s7/README.md](docs/s7/README.md) |
 
+## Live demo (all seven modules on one page)
+
+```bash
+pip install -r requirements-demo.txt
+streamlit run demo/app.py                    # or: docker build -t g1-demo . && docker run -p 8080:8080 g1-demo
+python -m demo.pack --src recordings/ --out G1_bags.zip   # bags + S3 masks -> small zip to upload
+```
+
+Replays a recorded ZED Mini bag like `ros2 bag play` and shows one tab per member (S1 … S7).
+Deploys as-is on Railway (`railway.json`) or Google Cloud Run. See [docs/demo/README.md](docs/demo/README.md).
+
 ## Quick start
 
 ```bash

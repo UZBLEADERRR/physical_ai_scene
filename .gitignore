@@ -224,3 +224,4 @@ data/frames/
 outputs/pipeline/
 outputs/smoke_test/
 outputs/evaluation/run/
+data/demo_store/
