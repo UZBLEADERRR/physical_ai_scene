@@ -66,7 +66,8 @@ python -m demo.runs --rerun S2_bag --parser ollama
 The cloud has no GPU and no Ollama, so S5 falls back to the offline rule parser there. On a MacBook the
 whole system, including the local LLM, runs on the laptop:
 
-1. Install Ollama from https://ollama.com/download (drag it to Applications, open it once).
+1. Install Ollama from https://ollama.com/download (drag it to Applications, open it once), and
+   Homebrew (https://brew.sh): Open3D on macOS needs `brew install libusb libomp` (the launcher runs it).
 2. `git clone -b claude/vibrant-wozniak-yw105s https://github.com/intodakt/physical_ai_scene.git`
 3. In Finder, double-click **`G1_Demo.command`** (first time: right-click → Open → Open).
 

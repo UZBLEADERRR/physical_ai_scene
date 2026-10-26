@@ -24,6 +24,21 @@ if [ ! -f .venv/.deps_ok ] || [ requirements-demo.txt -nt .venv/.deps_ok ]; then
   touch .venv/.deps_ok
 fi
 
+# Open3D's macOS wheel links Homebrew's libusb (and libomp); without them `import open3d` fails.
+if [ "$(uname)" = "Darwin" ]; then
+  BREW="$(command -v brew || ls /opt/homebrew/bin/brew /usr/local/bin/brew 2>/dev/null | head -1)"
+  if ! .venv/bin/python -c "import open3d" >/dev/null 2>&1; then
+    if [ -n "$BREW" ]; then
+      say "Installing libusb + libomp for Open3D (Homebrew)..."
+      "$BREW" install libusb libomp
+    else
+      say "Open3D needs Homebrew's libusb. Install Homebrew (https://brew.sh), then run: brew install libusb libomp"
+      exit 1
+    fi
+    .venv/bin/python -c "import open3d" || { say "Open3D still does not load; send this window's text to the team."; exit 1; }
+  fi
+fi
+
 # 2. Local LLM for S5 (Ollama). Without it the demo still runs with the offline rule parser.
 if command -v ollama >/dev/null 2>&1 || [ -d /Applications/Ollama.app ]; then
   if ! curl -sf http://127.0.0.1:11434/api/tags >/dev/null; then
