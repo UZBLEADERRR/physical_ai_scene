@@ -150,16 +150,27 @@ def copy_observation(obs_path: Path, data: dict, frame_dir: Path, image_size: tu
     return out
 
 
-def _wanted_times(rows: list, bag: Path, max_frames: int) -> tuple[Optional[list], float, str]:
-    """S3 stamps on the bag clock (absolute, or video-relative shifted to the bag's first RGB frame)."""
+def _time_candidates(rows: list, bag: Path) -> list[tuple[list, float, str, str]]:
+    """Ways to put S3's stamps on the bag's time line: (times, tolerance, clock, description).
+
+    S3 may carry absolute stamps (from the recorder clock or from the camera header clock) or
+    video-relative seconds; real ZED bags can have the two clocks far apart, so both are tried."""
     stamps = [r["timestamp"] for r in rows]
     if not stamps or any(s is None for s in stamps):
-        return None, 0.0, "S3 has no timestamps -> paired by order"
-    t0, t1 = bag_replay.rgb_time_range(bag)
-    absolute = t0 - 5 <= min(stamps) <= t1 + 5
-    times = stamps if absolute else [t0 + s - min(stamps) for s in stamps]
-    spacing = float(np.median(np.diff(sorted(times)))) if len(times) > 1 else 0.1
-    return times, max(0.05, 0.5 * spacing), "absolute bag time" if absolute else "video-relative (shifted to bag start)"
+        return []
+    r0, r1 = bag_replay.rgb_time_range(bag)
+    h0 = bag_replay.first_header_stamp(bag)
+    h1 = h0 + (r1 - r0)
+    spacing = float(np.median(np.diff(sorted(stamps)))) if len(stamps) > 1 else 0.1
+    tol = max(0.05, 0.5 * spacing)
+    rel = [s - min(stamps) for s in stamps]
+    out = []
+    if r0 - 5 <= min(stamps) <= r1 + 5:
+        out.append((stamps, tol, "receive", "absolute (bag record time)"))
+    if h0 - 5 <= min(stamps) <= h1 + 5:
+        out.append((stamps, tol, "header", "absolute (camera header time)"))
+    out.append(([h0 + x for x in rel], tol, "header", "video-relative (shifted to the first frame)"))
+    return out
 
 
 # ---------------------------------------------------------------- build datasets
@@ -179,18 +190,39 @@ def build_from_bag(bag: Path, run_obs: Optional[list], out: Path, max_frames: in
     note = "no S3 output for this bag"
     cb = lambda i, n: say(f"S1 replay {bag.name}: frame {i}/{n}", 0.1 + 0.6 * i / max(n, 1))
     if rows:
-        times, tol, note = _wanted_times(rows, bag, max_frames)
-        if times is not None:
-            paths, meta = bag_replay.export(bag, frames_dir, intrinsics_path=intr, at_times=times, tol=tol, progress=cb)
+        best = None
+        for times, tol, clock, how in _time_candidates(rows, bag):
+            shutil.rmtree(frames_dir, ignore_errors=True)
+            try:
+                paths, meta = bag_replay.export(bag, frames_dir, intrinsics_path=intr, at_times=times, tol=tol,
+                                                progress=cb, clock=clock)
+            except ValueError:          # no bag frame near any S3 stamp on this clock
+                continue
+            if best is None or len(paths) > best[0]:
+                best = (len(paths), how)
+            if len(paths) >= 0.8 * len(rows):
+                break
+        if best is not None and best[1] != how:      # an earlier clock matched more frames: redo it
+            times, tol, clock, how = next(c for c in _time_candidates(rows, bag) if c[3] == best[1])
+            shutil.rmtree(frames_dir, ignore_errors=True)
+            paths, meta = bag_replay.export(bag, frames_dir, intrinsics_path=intr, at_times=times, tol=tol,
+                                            progress=cb, clock=clock)
+        if best is not None:
             pairs = [(p, rows[i]) for p, i in zip(paths, meta["matched_times"])]
+            note = f"{best[1]}: {len(pairs)}/{len(rows)} S3 frames matched a bag frame"
         else:
+            stamps = [r["timestamp"] for r in rows]
+            note = ("S3 has no timestamps" if any(t is None for t in stamps) else
+                    f"S3 stamps {min(stamps):.3f}..{max(stamps):.3f} s match no bag frame") + \
+                " -> paired by order: CHECK that the masks sit on the objects (S3 page)"
+            shutil.rmtree(frames_dir, ignore_errors=True)
             paths, meta = bag_replay.export(bag, frames_dir, max_frames=len(rows), intrinsics_path=intr, progress=cb)
             pairs = list(zip(paths, rows))
         for p, r in pairs:
             rgb = Image.open(p / "rgb.png")
             copy_observation(r["path"], r["data"], p, rgb.size)
         meta["s3"] = {"run": rows[0]["path"].parent.parent.name, "alignment": note,
-                      "matched": len(pairs), "s3_frames": len(rows)}
+                      "matched": len(pairs), "s3_frames": len(rows), "by_order": best is None}
     else:
         paths, meta = bag_replay.export(bag, frames_dir, max_frames=max_frames, intrinsics_path=intr, progress=cb)
         meta["s3"] = {"run": None, "alignment": note, "matched": 0, "s3_frames": 0}

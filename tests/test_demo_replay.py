@@ -87,6 +87,7 @@ def test_zip_with_bag_and_video_relative_s3_masks(seq, tmp_path):
     assert [m.name for m in made] == ["S2_bag"]
     meta = json.loads((made[0] / "session_meta.json").read_text())
     assert meta["s3"]["matched"] == 4 and meta["s3"]["alignment"].startswith("video-relative")
+    assert not meta["s3"]["by_order"]
     f0 = made[0] / "frames" / "frame_0000"
     obs = json.loads((f0 / "observation.json").read_text())
     assert (f0 / obs["detections"][0]["mask"]).exists()
@@ -184,3 +185,29 @@ def test_separate_uploads_bag_files_plus_s3_zip(seq, tmp_path, monkeypatch, with
     assert summary["session_meta"]["s3"]["matched"] == 4
     assert summary["last_query"]["reasoning_result"]["target_id"] == "mug_01"
     assert not (runs.STORE / "_parts").exists() or not any((runs.STORE / "_parts").iterdir())
+
+
+@pytest.mark.parametrize("s3_clock", ["receive", "header"])
+def test_s3_stamps_match_when_camera_and_recorder_clocks_differ(seq, tmp_path, s3_clock):
+    """Real ZED bags: header stamps (camera clock) are far from the record time; S3 may use either."""
+    dirs, frames = seq
+    offset = 1000.0
+    pkg = tmp_path / "pkg"
+    bag_replay.write_bag(frames, pkg / "S1_static_bag", camera_info=True, lone_db3=False, header_offset=offset,
+                         T_map_link=frames[0].T_map_camera @ np.linalg.inv(O))
+    shift = offset if s3_clock == "header" else 0.0
+    _s3_run(dirs, pkg / "s3" / "20261016T050736_395812Z", [f.timestamp + shift for f in frames])
+    made = demo_data.import_source(pkg, tmp_path / "ds")
+    meta = json.loads((made[0] / "session_meta.json").read_text())
+    assert meta["s3"]["matched"] == 4 and not meta["s3"]["by_order"], meta["s3"]
+    assert s3_clock in meta["s3"]["alignment"] or "record" in meta["s3"]["alignment"]
+
+
+def test_s3_stamps_from_another_session_fall_back_to_order_with_warning(seq, tmp_path):
+    dirs, frames = seq
+    pkg = tmp_path / "pkg"
+    bag_replay.write_bag(frames, pkg / "S1_static_bag", camera_info=True, lone_db3=False)
+    _s3_run(dirs, pkg / "s3" / "run", [f.timestamp - 5e5 for f in frames])     # absolute, but a week off
+    meta = json.loads((demo_data.import_source(pkg, tmp_path / "ds")[0] / "session_meta.json").read_text())
+    # far-off absolute stamps are treated as video-relative, which still lines the frames up
+    assert meta["s3"]["matched"] == 4

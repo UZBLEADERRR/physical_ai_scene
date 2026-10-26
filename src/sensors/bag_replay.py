@@ -224,12 +224,13 @@ class ReplayStats:
 
 
 def synced_pairs(source: BagSource, topics: dict, max_dt: float = 0.02, stats: Optional[ReplayStats] = None):
-    """(stamp, rgb msg, depth msg, tf tree, camera_info intrinsics or None) for every pair whose header
-    stamps differ by at most ``max_dt``. Messages are not decoded here."""
+    """(header stamp, rgb msg, depth msg, tf tree, camera_info intrinsics or None, bag receive time of the
+    rgb msg) for every pair whose header stamps differ by at most ``max_dt``. Messages are not decoded here.
+    Header stamps (camera clock) and receive times (recorder clock) can differ by a lot in real bags."""
     stats = stats if stats is not None else ReplayStats()
     tree, intr, last = TfTree(), None, {"rgb": None, "depth": None}
     wanted = [topics["rgb"], topics["depth"]] + ([topics["info"]] if topics.get("info") else []) + topics["tf"]
-    for topic, _, msg in source.messages(wanted):
+    for topic, ns, msg in source.messages(wanted):
         if topic in topics["tf"]:
             tree.add(msg, static=topic.endswith("_static"))
             continue
@@ -240,7 +241,7 @@ def synced_pairs(source: BagSource, topics: dict, max_dt: float = 0.02, stats: O
             continue
         kind = "rgb" if topic == topics["rgb"] else "depth"
         setattr(stats, kind, getattr(stats, kind) + 1)
-        last[kind] = (msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9, msg)
+        last[kind] = (msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9, msg, ns * 1e-9)
         if last["rgb"] is None or last["depth"] is None:
             continue
         if abs(last["rgb"][0] - last["depth"][0]) > max_dt:
@@ -248,10 +249,10 @@ def synced_pairs(source: BagSource, topics: dict, max_dt: float = 0.02, stats: O
             last[older] = None
             stats.dropped += 1
             continue
-        (t_rgb, m_rgb), (t_dep, m_dep) = last["rgb"], last["depth"]
+        (t_rgb, m_rgb, recv), (t_dep, m_dep, _) = last["rgb"], last["depth"]
         last = {"rgb": None, "depth": None}
         stats.synced += 1
-        yield min(t_rgb, t_dep), m_rgb, m_dep, tree, intr
+        yield min(t_rgb, t_dep), m_rgb, m_dep, tree, intr, recv
 
 
 class _FrameBuilder:
@@ -262,7 +263,7 @@ class _FrameBuilder:
         self.T_cache: dict = {}
         self.fallback = None
 
-    def __call__(self, t, m_rgb, m_dep, tree, intr) -> SynchronizedFrame:
+    def __call__(self, t, m_rgb, m_dep, tree, intr, recv=None) -> SynchronizedFrame:
         rgb, depth = decode_image(m_rgb), decode_image(m_dep)
         if depth.shape != rgb.shape[:2]:
             raise ValueError(f"depth {depth.shape} is not registered to RGB {rgb.shape[:2]} "
@@ -297,9 +298,9 @@ def iter_frames(source: BagSource, topics: dict, every: int = 1, max_dt: float =
 
 
 def frames_at(source: BagSource, topics: dict, times: list, tol: float, max_dt: float = 0.02,
-              intrinsics_path: str | Path = FALLBACK_INTRINSICS,
-              stats: Optional[ReplayStats] = None) -> Iterator[tuple[int, SynchronizedFrame]]:
-    """For each wanted stamp (sorted, bag clock) the closest synchronized pair within ``tol`` seconds.
+              intrinsics_path: str | Path = FALLBACK_INTRINSICS, stats: Optional[ReplayStats] = None,
+              clock: str = "receive") -> Iterator[tuple[int, SynchronizedFrame]]:
+    """For each wanted stamp (``clock``: "receive" = bag record time, "header" = message stamps) the closest synchronized pair within ``tol`` seconds.
 
     Used when S3 already produced masks: the bag is replayed at exactly the moments S3 looked at.
     Yields (index into ``times``, frame); wanted stamps without a pair inside ``tol`` are skipped.
@@ -309,7 +310,7 @@ def frames_at(source: BagSource, topics: dict, times: list, tol: float, max_dt: 
     order = sorted(range(len(times)), key=lambda i: times[i])
     i, best = 0, None                                       # best = (|dt|, pair) for order[i]
     for pair in synced_pairs(source, topics, max_dt, stats):
-        t = pair[0]
+        t = pair[5] if clock == "receive" else pair[0]
         while i < len(order) and t > times[order[i]] + tol:
             if best is not None:
                 yield order[i], build(*best[1])
@@ -341,7 +342,7 @@ def auto_every(source: BagSource, topics: dict, max_frames: int) -> int:
 
 def export(bag, out_dir, max_frames: int = 40, every: Optional[int] = None, profile: Optional[str] = None,
            intrinsics_path: str | Path = FALLBACK_INTRINSICS, max_dt: float = 0.02, at_times: Optional[list] = None,
-           tol: float = 0.05, progress=None) -> tuple[list[Path], dict]:
+           tol: float = 0.05, progress=None, clock: str = "receive") -> tuple[list[Path], dict]:
     """Bag -> ``out_dir/frame_XXXX`` folders + ``out_dir/session_meta.json``. Returns (paths, session_meta).
 
     ``at_times`` (bag-clock seconds) replays the bag at those moments instead of every N-th pair;
@@ -352,7 +353,7 @@ def export(bag, out_dir, max_frames: int = 40, every: Optional[int] = None, prof
     stats, paths, matched = ReplayStats(), [], []
     out_dir = Path(out_dir)
     if at_times is not None:
-        frames = frames_at(source, topics, list(at_times), tol, max_dt, intrinsics_path, stats)
+        frames = frames_at(source, topics, list(at_times), tol, max_dt, intrinsics_path, stats, clock)
         expected, every = len(at_times), None
     else:
         every = every or auto_every(source, topics, max_frames)
@@ -378,6 +379,14 @@ def export(bag, out_dir, max_frames: int = 40, every: Optional[int] = None, prof
     return paths, meta
 
 
+def first_header_stamp(bag, profile: Optional[str] = None) -> float:
+    """Header stamp (camera clock) of the first synchronized pair."""
+    source = BagSource(bag)
+    for pair in synced_pairs(source, detect_topics(source.topics, profile)):
+        return pair[0]
+    raise ValueError(f"no synchronized RGB/depth pair in {bag}")
+
+
 def rgb_time_range(bag, profile: Optional[str] = None) -> tuple[float, float]:
     """Bag-clock time of the first and last RGB message (to align S3's video-relative stamps)."""
     source = BagSource(bag)
@@ -396,11 +405,12 @@ def _quat(R):
 
 
 def write_bag(frames, path, rgb="/rgb", depth="/depth", camera_info=False, T_map_link=None,
-                    link="camera_link", lone_db3=True):
+              link="camera_link", lone_db3=True, header_offset=0.0):
     """Write frames as a ROS 2 bag with the short topic names S1 used (/rgb, /depth, /tf_static).
 
     ``camera_info=False`` reproduces a bag recorded without the S0 calibration; ``T_map_link`` adds a
-    static map -> ``link`` transform; ``lone_db3`` leaves a bare ``.db3`` without metadata.yaml.
+    static map -> ``link`` transform; ``lone_db3`` leaves a bare ``.db3`` without metadata.yaml;
+    ``header_offset`` puts the header stamps on another clock than the record time (as real ZED bags do).
     Used by the tests and the built-in demo recording."""
     from rosbags.rosbag2 import Writer
     from rosbags.typesys import Stores, get_typestore
@@ -415,6 +425,7 @@ def write_bag(frames, path, rgb="/rgb", depth="/depth", camera_info=False, T_map
     ROI = T["sensor_msgs/msg/RegionOfInterest"]
 
     def hdr(t, frame=link):
+        t = t + header_offset
         return Hdr(stamp=Time(sec=int(t), nanosec=int(round((t - int(t)) * 1e9))), frame_id=frame)
 
     with Writer(path, version=8) as w:

@@ -118,6 +118,9 @@ def import_and_run(src: Path, parser: str = "auto", max_frames: int = 40, progre
         try:
             run_dataset(d.name, parser, progress=sub)
             names.append(d.name)
+            s3 = json.loads((d / "session_meta.json").read_text(encoding="utf-8")).get("s3", {})
+            if s3.get("by_order"):
+                LAST_ERRORS.append(f"{d.name}: {s3['alignment']}")
         except Exception as e:      # one bag without S3 masks must not hide the other bags
             LAST_ERRORS.append(str(e))
             _say(progress, f"FAILED {d.name}: {e}", 0.5 + 0.5 * (k + 1) / len(made))
