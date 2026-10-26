@@ -389,8 +389,24 @@ def sidebar_data(parser_mode):
                 st.error(f"Import failed: {e}")
 
 
+@st.cache_data(show_spinner=False)
+def code_version() -> str:
+    """Short git commit of the running code (or the one Railway built), shown in the sidebar."""
+    import subprocess
+
+    sha = os.environ.get("RAILWAY_GIT_COMMIT_SHA", "")[:7]
+    if not sha:
+        try:
+            sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True,
+                                 text=True, timeout=5).stdout.strip()
+        except Exception:
+            sha = ""
+    return sha or "unknown"
+
+
 def sidebar():
     st.sidebar.title("G1 · Physical AI demo")
+    st.sidebar.caption(f"code version `{code_version()}`")
     parser_mode = st.sidebar.radio("S5 parser", ["auto", "rules", "ollama"], horizontal=True,
                                    help="auto = local LLM (Ollama, OLLAMA_HOST) if reachable, else the offline "
                                         "rule parser. The verifier is the same either way.")
