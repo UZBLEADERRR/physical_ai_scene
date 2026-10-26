@@ -7,6 +7,7 @@ import json
 import math
 import os
 import re
+import time
 from pathlib import Path
 
 GRAPH_PATH = Path(os.environ.get("S5_GRAPH", Path(__file__).parent / "sample_scene_graph.json"))
@@ -15,9 +16,28 @@ NEAR_THRESHOLD = 0.3  # meters, same rule as S4's "near" edges
 NEAR_WORDS = {"near", "next_to", "close_to", "beside", "by", "nearby", "closest_to"}
 
 
-def load_graph(path=GRAPH_PATH):
-    with open(path) as f:
-        return json.load(f)
+class GraphError(Exception):
+    pass
+
+
+def load_graph(path=GRAPH_PATH, tries=5):
+    """Reads S4's graph file. S4 rewrites it every second, so a half-written file is retried."""
+    error = None
+    for _ in range(tries):
+        try:
+            with open(path) as f:
+                graph = json.load(f)
+            break
+        except FileNotFoundError:
+            raise GraphError(f"graph file not found: {path}") from None
+        except json.JSONDecodeError as e:
+            error = e
+            time.sleep(0.1)
+    else:
+        raise GraphError(f"graph file is not valid JSON: {path} ({error})")
+    if not isinstance(graph, dict) or not graph.get("nodes"):
+        raise GraphError(f"graph file has no nodes: {path}")
+    return graph
 
 
 def _words(text):
@@ -37,8 +57,14 @@ def find_nodes_by_name(graph, text):
     for query in (words, words[-1:]):  # "red mug" -> fall back to the last word "mug"
         matches = [n for n in graph["nodes"] if _name_score(n, query) > 0]
         if matches:
-            return sorted(matches, key=lambda n: (_name_score(n, query), n.get("confidence", 0)), reverse=True)
+            return sorted(matches, key=lambda n: (_name_score(n, query), _conf(n) or 0), reverse=True)
     return []
+
+
+def _conf(node):
+    """Node confidence as a number, or None when S4 sent no value."""
+    value = node.get("confidence")
+    return value if isinstance(value, (int, float)) else None
 
 
 def distance(a, b):
@@ -72,8 +98,10 @@ def _warnings(*nodes):
     for n in nodes:
         if n.get("state") == "occluded":
             out.append(f"{n['id']} is occluded (last seen {n.get('last_seen')})")
-        if n.get("confidence", 1.0) < LOW_CONFIDENCE:
-            out.append(f"{n['id']} has low confidence ({n.get('confidence')})")
+        if _conf(n) is None:
+            out.append(f"{n['id']} has no confidence value")
+        elif _conf(n) < LOW_CONFIDENCE:
+            out.append(f"{n['id']} has low confidence ({_conf(n)})")
     return out
 
 
@@ -83,7 +111,7 @@ def _ok(target, facts, answer, nodes, extra_warnings=()):
         "computed_facts": facts,
         "verification_status": True,
         "final_answer": answer,
-        "confidence": round(min(n.get("confidence", 1.0) for n in nodes), 2),
+        "confidence": round(min((_conf(n) for n in nodes if _conf(n) is not None), default=0.0), 2),
         "warnings": _warnings(*nodes) + list(extra_warnings),
     }
 
@@ -209,7 +237,7 @@ def filter_not_near(graph, target_text, negatives, only_free=False):
     if not valid:
         return fail(f"all '{target_text}' candidates break: {_rule_text(negatives)}", "no object satisfies the constraint.")
 
-    chosen = max(valid, key=lambda n: n.get("confidence", 0))
+    chosen = max(valid, key=lambda n: _conf(n) or 0)
     return _ok(
         chosen,
         f"'{chosen['id']}': " + "; ".join(rule_facts) if rule_facts else f"'{chosen['id']}' kept",
