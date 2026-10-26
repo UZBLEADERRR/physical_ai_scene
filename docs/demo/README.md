@@ -61,7 +61,21 @@ python -m demo.runs                            # list recordings
 python -m demo.runs --rerun S2_bag --parser ollama
 ```
 
-## 2. Run locally
+## 2. Run on a MacBook (local LLM included)
+
+The cloud has no GPU and no Ollama, so S5 falls back to the offline rule parser there. On a MacBook the
+whole system, including the local LLM, runs on the laptop:
+
+1. Install Ollama from https://ollama.com/download (drag it to Applications, open it once).
+2. `git clone -b claude/vibrant-wozniak-yw105s https://github.com/intodakt/physical_ai_scene.git`
+3. In Finder, double-click **`G1_Demo.command`** (first time: right-click → Open → Open).
+
+The first run installs Python 3.11 and the packages, and pulls `qwen2.5:3b` (about 2 GB). Later runs start
+in seconds. The browser opens at http://localhost:8501 and the sidebar shows `S5 parser in use: ollama`.
+Uploads have no size limit on the Mac: upload the bag's `metadata.yaml` + `.db3` and S3's zip directly.
+Another model: `S5_MODEL=llama3.2:3b ./G1_Demo.command`.
+
+## 2b. Run locally (any OS)
 
 ```bash
 pip install -r requirements-demo.txt

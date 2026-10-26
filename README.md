@@ -21,6 +21,7 @@ python -m demo.pack --src recordings/ --out G1_bags.zip   # bags + S3 masks -> s
 ```
 
 Replays a recorded ZED Mini bag like `ros2 bag play` and shows one tab per member (S1 … S7).
+On a MacBook, double-click `G1_Demo.command` (local Ollama LLM included).
 Deploys as-is on Railway (`railway.json`) or Google Cloud Run. See [docs/demo/README.md](docs/demo/README.md).
 
 ## Quick start
