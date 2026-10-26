@@ -43,7 +43,8 @@ python -m demo.pack --src recordings/ --max-frames 40 --out G1_bags.zip
 The zip holds only the replayed frames (depth as 16-bit mm PNG), typically 50–150 MB for 40 frames.
 Then use **one** of these:
 
-* **Upload** it in the sidebar: *➕ Add recording → Upload .zip or .db3 → Import upload*.
+* **Upload the pieces separately** in the sidebar (*➕ Add recording*): **1 · S1 bag** = `metadata.yaml` + `.db3` (select both), **2 · S3 output** = S3's zip, **3 · Intrinsics** (optional), then *Import recording*. No packing needed on Railway.
+* **Upload** the packed zip: *➕ Add recording → One zip with everything → Import zip*.
 * **Link**: put it on Google Drive ("Anyone with the link") and paste the link into *…or a link*.
 * **Automatic**: set `DEMO_DATA_URLS=<link1>,<link2>` on the server; it is imported once at start-up.
 

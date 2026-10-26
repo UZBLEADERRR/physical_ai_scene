@@ -336,28 +336,55 @@ def imported(names):
 
 def sidebar_data(parser_mode):
     with st.sidebar.expander("➕ Add recording", expanded=False):
-        st.caption("A **.zip** with the ROS 2 bag(s) (folder with metadata.yaml, or a lone .db3), S3's output "
-                   "folder(s) (frame_XXXXXX/observation.json + masks) and optionally camera_intrinsics.yaml. "
-                   "Or a ready folder of frames. One dataset is made per bag; S3 runs are paired by name (S2_bag ↔ …S2…).")
+        if os.environ.get("K_SERVICE"):          # set by Google Cloud Run
+            st.warning("Cloud Run accepts uploads up to 32 MB. For bags use a Google Drive link (bottom).")
         max_frames = st.slider("Max frames per bag", 5, 120, 40, 5,
                                help="The bag is replayed at S3's timestamps, or every N-th frame up to this many.")
-        up = st.file_uploader("Upload .zip or .db3", type=["zip", "db3"],
-                              help=f"Limit {UPLOAD_LIMIT_MB} MB. For bigger files use a link below.")
-        if up is not None and st.button("Import upload", type="primary", width="stretch"):
+        st.markdown("**1 · S1 bag** — `metadata.yaml` + `.db3` (select both)")
+        bag = st.file_uploader("S1 bag files", type=["yaml", "db3", "mcap"], accept_multiple_files=True,
+                               key="up_bag", label_visibility="collapsed")
+        st.markdown("**2 · S3 output** — zip with `observation.json` + masks")
+        s3 = st.file_uploader("S3 output zip", type=["zip"], accept_multiple_files=True, key="up_s3",
+                              label_visibility="collapsed")
+        st.markdown("**3 · Intrinsics** (optional) — `camera_intrinsics.yaml`")
+        intr = st.file_uploader("camera_intrinsics.yaml", type=["yaml", "yml"], key="up_intr",
+                                label_visibility="collapsed",
+                                help="Only needed when the bag has no camera_info topic.")
+        names = [f.name for f in bag or []]
+        name = st.text_input("Recording name", value=runs.bag_name(names) if names else "",
+                             placeholder="e.g. S1_static_bag")
+        if bag:
+            if not any(n.endswith((".db3", ".mcap")) for n in names):
+                st.caption("⚠ add the .db3 file too")
+            elif "metadata.yaml" not in names:
+                st.caption("metadata.yaml missing: the .db3 is read directly (works for ROS 2 Humble bags).")
+            if not s3:
+                st.caption("⚠ no S3 output: masks are needed unless the server runs YOLO-World (WITH_S3_LIVE=1).")
+        if st.button("Import recording", type="primary", width="stretch", disabled=not bag):
+            try:
+                out = runs.import_parts(name or runs.bag_name(names), [(f.name, f) for f in bag],
+                                        [(f.name, f) for f in s3 or []], (intr.name, intr) if intr else None,
+                                        parser_mode, max_frames, progress_box())
+                imported(out)
+            except Exception as e:
+                st.error(f"Import failed: {e}")
+        st.divider()
+        st.caption("…or everything in **one .zip** (bags + S3 folders), or a link to such a zip.")
+        up = st.file_uploader("One zip with everything", type=["zip", "db3"], key="up_zip",
+                              help=f"Limit {UPLOAD_LIMIT_MB} MB.")
+        if up is not None and st.button("Import zip", width="stretch"):
             with tempfile.TemporaryDirectory() as tmp:
                 p = Path(tmp) / up.name
                 with open(p, "wb") as f:
                     f.write(up.getbuffer())
                 try:
-                    names = runs.import_and_run(p, parser_mode, max_frames, progress_box())
-                    imported(names)
+                    imported(runs.import_and_run(p, parser_mode, max_frames, progress_box()))
                 except Exception as e:
                     st.error(f"Import failed: {e}")
-        url = st.text_input("…or a link (Google Drive / direct .zip / .db3)")
+        url = st.text_input("Link (Google Drive / direct .zip / .db3)")
         if url and st.button("Import link", width="stretch"):
             try:
-                names = runs.import_url(url, parser_mode, max_frames, progress_box())
-                imported(names)
+                imported(runs.import_url(url, parser_mode, max_frames, progress_box()))
             except Exception as e:
                 st.error(f"Import failed: {e}")
 
@@ -371,6 +398,7 @@ def sidebar():
     st.sidebar.caption(f"S5 parser in use: **{parser}**")
     datasets = [d for d in runs.list_datasets() if d["run"]]
     if not datasets:
+        sidebar_data(parser_mode)
         return None, parser, parser_mode
     names = [d["name"] for d in datasets]
     if st.session_state.get("_select") in names:

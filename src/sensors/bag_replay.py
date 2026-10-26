@@ -67,7 +67,15 @@ class BagSource:
                 raise ValueError(f"{self.path} has no metadata.yaml and no .db3 file")
             self.path, self._sqlite = db3[0], True
         self.store = _typestore()
-        self.topics = self._read_topics()     # name -> {"type", "count"}
+        try:
+            self.topics = self._read_topics()     # name -> {"type", "count"}
+        except Exception:
+            # metadata.yaml unreadable or naming another file (renamed on upload): read the .db3 directly
+            db3 = [self.path] if self.path.suffix == ".db3" else sorted(self._dir.glob("*.db3"))
+            if self._sqlite or not db3:
+                raise
+            self.path, self._sqlite = db3[0], True
+            self.topics = self._read_topics()
 
     @property
     def name(self) -> str:

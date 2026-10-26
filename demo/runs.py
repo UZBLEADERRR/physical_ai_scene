@@ -126,6 +126,57 @@ def import_and_run(src: Path, parser: str = "auto", max_frames: int = 40, progre
     return names
 
 
+def bag_name(filenames: list[str]) -> str:
+    """Recording name from the uploaded bag files: S1_static_bag_0.db3 -> S1_static_bag."""
+    import re
+
+    db = next((n for n in filenames if n.endswith((".db3", ".mcap"))), "recording")
+    return demo_data.slug(re.sub(r"_\d+$", "", Path(db).stem))
+
+
+def import_parts(name: str, bag_files: list, s3_zips: list = (), intrinsics=None, parser: str = "auto",
+                 max_frames: int = 40, progress: Progress = None) -> list[str]:
+    """Separately uploaded pieces -> one recording.
+
+    ``bag_files``: (filename, file object) for S1's ``metadata.yaml`` + ``.db3`` / ``.mcap``;
+    ``s3_zips``: (filename, file object) for S3's output zips; ``intrinsics``: optional
+    (filename, file object) for camera_intrinsics.yaml. Files are streamed to disk, laid out as
+    a bag folder + S3 runs, then imported like any other upload.
+    """
+    if not any(n.endswith((".db3", ".mcap")) for n, _ in bag_files):
+        raise ValueError("S1: upload the bag's .db3 (or .mcap) file; metadata.yaml alone is not a recording")
+    name = demo_data.slug(name)
+    stage = STORE / "_parts" / name
+    shutil.rmtree(stage, ignore_errors=True)
+    (stage / name).mkdir(parents=True)
+
+    def save(fobj, dst: Path):
+        fobj.seek(0)
+        with open(dst, "wb") as f:
+            shutil.copyfileobj(fobj, f, 1 << 20)
+
+    try:
+        _say(progress, "saving S1 bag files", 0.01)
+        has_meta = any(Path(n).name == "metadata.yaml" for n, _ in bag_files)
+        for fname, fobj in bag_files:
+            fname = Path(fname).name
+            if not has_meta and fname.endswith(".db3"):
+                fname = f"{name}.db3"          # a lone .db3 names the recording itself
+            save(fobj, stage / name / fname)
+        for fname, fobj in s3_zips:
+            _say(progress, f"unpacking S3 output {fname}", 0.03)
+            z = stage / "_zips" / Path(fname).name
+            z.parent.mkdir(exist_ok=True)
+            save(fobj, z)
+            demo_data.safe_extract(z, stage / "s3_semantic" / demo_data.slug(Path(fname).stem))
+            z.unlink()
+        if intrinsics is not None:
+            save(intrinsics[1], stage / "camera_intrinsics.yaml")
+        return import_and_run(stage, parser, max_frames, progress)
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)
+
+
 def build_builtin(progress: Progress = None) -> str:
     """Synthetic desk recorded as a real ZED-format ROS 2 bag + S3 masks, imported like team data."""
     import numpy as np

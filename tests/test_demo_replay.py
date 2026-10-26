@@ -151,3 +151,36 @@ def test_pack_then_reimport_keeps_s1_metadata_and_shrinks_depth(seq, tmp_path):
     za, zb = a.depth_raw * a.intrinsics.depth_scale, b.depth_raw * b.intrinsics.depth_scale
     ok = (zb > 0) & np.isfinite(zb)
     assert np.abs(za[ok] - zb[ok]).max() <= 0.0006                           # 1 mm PNG is lossless enough
+
+
+@pytest.mark.parametrize("with_metadata", [True, False])
+def test_separate_uploads_bag_files_plus_s3_zip(seq, tmp_path, monkeypatch, with_metadata):
+    """The sidebar's three upload slots: metadata.yaml + .db3, S3's zip, optional intrinsics."""
+    import io
+
+    from demo import runs
+
+    dirs, frames = seq
+    monkeypatch.setattr(runs, "STORE", tmp_path / "store")
+    monkeypatch.setattr(runs, "DATASETS", tmp_path / "store" / "datasets")
+    monkeypatch.setattr(runs, "RUNS", tmp_path / "store" / "runs")
+    bag = bag_replay.write_bag(frames, tmp_path / "rec" / "S1_static_bag", camera_info=True, lone_db3=False,
+                               T_map_link=frames[0].T_map_camera @ np.linalg.inv(O))
+    db3 = next(bag.glob("*.db3"))                     # ROS 2 names it S1_static_bag_0.db3; metadata names the old file
+    files = [("S1_static_bag_0.db3", io.BytesIO(db3.read_bytes()))]
+    if with_metadata:
+        files.append(("metadata.yaml", io.BytesIO((bag / "metadata.yaml").read_bytes())))
+    s3 = tmp_path / "s3" / "20261016T050736_395812Z"
+    _s3_run(dirs, s3, [f.timestamp - frames[0].timestamp for f in frames])
+    zbuf = io.BytesIO()
+    with zipfile.ZipFile(zbuf, "w") as z:
+        for p in s3.rglob("*"):
+            z.write(p, p.relative_to(s3.parent))
+    assert runs.bag_name([n for n, _ in files]) == "S1_static_bag"
+    names = runs.import_parts("S1_static_bag", files, [("20261016T050736_395812Z.zip", zbuf)], parser="rules")
+    assert names == ["S1_static_bag"]
+    summary = json.loads((runs.RUNS / "S1_static_bag" / "run_summary.json").read_text())
+    assert summary["n_frames"] == 4 and not summary["contract_errors"]
+    assert summary["session_meta"]["s3"]["matched"] == 4
+    assert summary["last_query"]["reasoning_result"]["target_id"] == "mug_01"
+    assert not (runs.STORE / "_parts").exists() or not any((runs.STORE / "_parts").iterdir())
