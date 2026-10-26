@@ -57,7 +57,16 @@ else
   say "For the local LLM install it from https://ollama.com/download and run this file again."
 fi
 
-# 3. The demo
+# 3. The demo (an older demo still holding the port is stopped first)
+for pid in $(lsof -ti tcp:"$PORT" 2>/dev/null); do
+  if ps -p "$pid" -o command= | grep -q "streamlit run demo/app.py"; then
+    say "Stopping the previous demo (pid $pid) on port $PORT..."
+    kill "$pid" && sleep 2
+  else
+    say "Port $PORT is used by another program; set PORT=8502 and run again."
+    exit 1
+  fi
+done
 say "Opening http://localhost:$PORT  (close this window or press Ctrl+C to stop)"
 (sleep 6 && open "http://localhost:$PORT") &
 export S5_MODEL="$MODEL"
