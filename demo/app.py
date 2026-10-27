@@ -746,8 +746,14 @@ def demo_queries(graph):
             labels.append(lab)
     qs = [f"Where is the {labels[0]}?"] if labels else []
     if len(labels) > 1:
-        qs += [f"What is closest to the {labels[0]}?", f"Go to the {labels[1]}",
-               f"Find an object that is not near the {labels[0]}"]
+        qs += [f"What is closest to the {labels[0]}?", f"Go to the {labels[1]}"]
+        # negative query: name a real object that is NOT near labels[0], so the verifier has a target to prove
+        ref = [n for n in graph["nodes"] if not n.get("virtual") and node_label(n) == labels[0]]
+        for lab in labels[1:]:
+            cands = [n for n in graph["nodes"] if not n.get("virtual") and node_label(n) == lab]
+            if any(all(np.linalg.norm(np.subtract(c["pose_map"], r["pose_map"])) >= 0.3 for r in ref) for c in cands):
+                qs.append(f"Find the {lab} that is not near the {labels[0]}")
+                break
     qs += ["Where is the portable lidar scanner?"]
     return labels, qs
 
