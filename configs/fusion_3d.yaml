@@ -18,6 +18,8 @@ depth_reliability:     # Week 7: transparent / reflective objects (glass)
   plane_leak_margin_m: 0.012
   min_genuine_ratio: 0.10    # below this, depth points are noise -> use mask + desk plane
   mask_plane_fallback: true  # place unusable-depth objects from mask + desk plane
+  spike_filter: true         # Week 9: drop specular depth spikes (> max(3·σ_Z, 1 cm) from the 5x5 median)
+  spike_filter_max_leak: 0.3 # ...but not on see-through objects, whose local median is the desk
 
 support_plane:
   enabled: true        # RANSAC the desk and drop its points from object masks

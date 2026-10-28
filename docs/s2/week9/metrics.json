@@ -1,0 +1,398 @@
+{
+  "methods": [
+    "F1_rgb_plane",
+    "F2_depth_only",
+    "F2_adaptive"
+  ],
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "cases": [
+    "rs_holes85",
+    "zed_see85",
+    "zed_see100",
+    "zed_holes100",
+    "rs_shiny",
+    "zed_shiny"
+  ],
+  "by_category": {
+    "matte": {
+      "F1_rgb_plane": {
+        "n": 30,
+        "recall": 0.5,
+        "mean_cm": 7.22,
+        "median_cm": 6.96,
+        "p95_cm": 7.74,
+        "max_cm": 7.74
+      },
+      "F2_depth_only": {
+        "n": 60,
+        "recall": 1.0,
+        "mean_cm": 0.64,
+        "median_cm": 0.64,
+        "p95_cm": 0.74,
+        "max_cm": 1.15
+      },
+      "F2_adaptive": {
+        "n": 60,
+        "recall": 1.0,
+        "mean_cm": 0.64,
+        "median_cm": 0.66,
+        "p95_cm": 0.74,
+        "max_cm": 0.76
+      }
+    },
+    "small": {
+      "F1_rgb_plane": {
+        "n": 20,
+        "recall": 0.667,
+        "mean_cm": 2.51,
+        "median_cm": 2.51,
+        "p95_cm": 2.51,
+        "max_cm": 2.51
+      },
+      "F2_depth_only": {
+        "n": 30,
+        "recall": 1.0,
+        "mean_cm": 0.68,
+        "median_cm": 0.67,
+        "p95_cm": 0.73,
+        "max_cm": 0.73
+      },
+      "F2_adaptive": {
+        "n": 30,
+        "recall": 1.0,
+        "mean_cm": 0.67,
+        "median_cm": 0.65,
+        "p95_cm": 0.72,
+        "max_cm": 0.73
+      }
+    },
+    "cylinder": {
+      "F1_rgb_plane": {
+        "n": 20,
+        "recall": 1.0,
+        "mean_cm": 0.62,
+        "median_cm": 0.65,
+        "p95_cm": 0.65,
+        "max_cm": 0.65
+      },
+      "F2_depth_only": {
+        "n": 20,
+        "recall": 1.0,
+        "mean_cm": 0.65,
+        "median_cm": 0.64,
+        "p95_cm": 0.7,
+        "max_cm": 0.7
+      },
+      "F2_adaptive": {
+        "n": 20,
+        "recall": 1.0,
+        "mean_cm": 0.67,
+        "median_cm": 0.67,
+        "p95_cm": 0.73,
+        "max_cm": 0.73
+      }
+    },
+    "shiny": {
+      "F1_rgb_plane": {
+        "n": 10,
+        "recall": 1.0,
+        "mean_cm": 0.6,
+        "median_cm": 0.6,
+        "p95_cm": 0.65,
+        "max_cm": 0.65
+      },
+      "F2_depth_only": {
+        "n": 10,
+        "recall": 1.0,
+        "mean_cm": 3.22,
+        "median_cm": 3.2,
+        "p95_cm": 3.31,
+        "max_cm": 3.35
+      },
+      "F2_adaptive": {
+        "n": 10,
+        "recall": 1.0,
+        "mean_cm": 0.7,
+        "median_cm": 0.68,
+        "p95_cm": 0.79,
+        "max_cm": 0.79
+      }
+    },
+    "transparent": {
+      "F1_rgb_plane": {
+        "n": 30,
+        "recall": 1.0,
+        "mean_cm": 1.09,
+        "median_cm": 1.04,
+        "p95_cm": 1.19,
+        "max_cm": 1.19
+      },
+      "F2_depth_only": {
+        "n": 30,
+        "recall": 1.0,
+        "mean_cm": 2.26,
+        "median_cm": 0.71,
+        "p95_cm": 5.55,
+        "max_cm": 5.61
+      },
+      "F2_adaptive": {
+        "n": 30,
+        "recall": 1.0,
+        "mean_cm": 0.9,
+        "median_cm": 0.93,
+        "p95_cm": 1.05,
+        "max_cm": 1.05
+      }
+    },
+    "all": {
+      "F1_rgb_plane": {
+        "n": 110,
+        "recall": 0.733,
+        "mean_cm": 2.89,
+        "median_cm": 1.19,
+        "p95_cm": 7.74,
+        "max_cm": 7.74
+      },
+      "F2_depth_only": {
+        "n": 150,
+        "recall": 1.0,
+        "mean_cm": 1.14,
+        "median_cm": 0.68,
+        "p95_cm": 5.26,
+        "max_cm": 5.61
+      },
+      "F2_adaptive": {
+        "n": 150,
+        "recall": 1.0,
+        "mean_cm": 0.7,
+        "median_cm": 0.67,
+        "p95_cm": 1.04,
+        "max_cm": 1.05
+      }
+    }
+  },
+  "glass_by_case": {
+    "rs_holes85": {
+      "F1_rgb_plane": {
+        "n": 5,
+        "recall": 1.0,
+        "mean_cm": 1.19,
+        "median_cm": 1.19,
+        "p95_cm": 1.19,
+        "max_cm": 1.19
+      },
+      "F2_depth_only": {
+        "n": 5,
+        "recall": 1.0,
+        "mean_cm": 0.72,
+        "median_cm": 0.71,
+        "p95_cm": 0.77,
+        "max_cm": 0.78
+      },
+      "F2_adaptive": {
+        "n": 5,
+        "recall": 1.0,
+        "mean_cm": 0.92,
+        "median_cm": 0.93,
+        "p95_cm": 0.97,
+        "max_cm": 0.97
+      }
+    },
+    "zed_see85": {
+      "F1_rgb_plane": {
+        "n": 5,
+        "recall": 1.0,
+        "mean_cm": 1.04,
+        "median_cm": 1.04,
+        "p95_cm": 1.04,
+        "max_cm": 1.04
+      },
+      "F2_depth_only": {
+        "n": 5,
+        "recall": 1.0,
+        "mean_cm": 0.65,
+        "median_cm": 0.67,
+        "p95_cm": 0.69,
+        "max_cm": 0.69
+      },
+      "F2_adaptive": {
+        "n": 5,
+        "recall": 1.0,
+        "mean_cm": 0.74,
+        "median_cm": 0.75,
+        "p95_cm": 0.82,
+        "max_cm": 0.83
+      }
+    },
+    "zed_see100": {
+      "F1_rgb_plane": {
+        "n": 5,
+        "recall": 1.0,
+        "mean_cm": 1.04,
+        "median_cm": 1.04,
+        "p95_cm": 1.04,
+        "max_cm": 1.04
+      },
+      "F2_depth_only": {
+        "n": 5,
+        "recall": 1.0,
+        "mean_cm": 5.25,
+        "median_cm": 5.26,
+        "p95_cm": 5.31,
+        "max_cm": 5.31
+      },
+      "F2_adaptive": {
+        "n": 5,
+        "recall": 1.0,
+        "mean_cm": 1.05,
+        "median_cm": 1.04,
+        "p95_cm": 1.05,
+        "max_cm": 1.05
+      }
+    },
+    "zed_holes100": {
+      "F1_rgb_plane": {
+        "n": 5,
+        "recall": 1.0,
+        "mean_cm": 1.04,
+        "median_cm": 1.04,
+        "p95_cm": 1.04,
+        "max_cm": 1.04
+      },
+      "F2_depth_only": {
+        "n": 5,
+        "recall": 1.0,
+        "mean_cm": 5.54,
+        "median_cm": 5.51,
+        "p95_cm": 5.6,
+        "max_cm": 5.61
+      },
+      "F2_adaptive": {
+        "n": 5,
+        "recall": 1.0,
+        "mean_cm": 1.05,
+        "median_cm": 1.05,
+        "p95_cm": 1.05,
+        "max_cm": 1.05
+      }
+    },
+    "rs_shiny": {
+      "F1_rgb_plane": {
+        "n": 5,
+        "recall": 1.0,
+        "mean_cm": 1.19,
+        "median_cm": 1.19,
+        "p95_cm": 1.19,
+        "max_cm": 1.19
+      },
+      "F2_depth_only": {
+        "n": 5,
+        "recall": 1.0,
+        "mean_cm": 0.72,
+        "median_cm": 0.71,
+        "p95_cm": 0.77,
+        "max_cm": 0.78
+      },
+      "F2_adaptive": {
+        "n": 5,
+        "recall": 1.0,
+        "mean_cm": 0.92,
+        "median_cm": 0.93,
+        "p95_cm": 0.97,
+        "max_cm": 0.97
+      }
+    },
+    "zed_shiny": {
+      "F1_rgb_plane": {
+        "n": 5,
+        "recall": 1.0,
+        "mean_cm": 1.04,
+        "median_cm": 1.04,
+        "p95_cm": 1.04,
+        "max_cm": 1.04
+      },
+      "F2_depth_only": {
+        "n": 5,
+        "recall": 1.0,
+        "mean_cm": 0.65,
+        "median_cm": 0.67,
+        "p95_cm": 0.69,
+        "max_cm": 0.69
+      },
+      "F2_adaptive": {
+        "n": 5,
+        "recall": 1.0,
+        "mean_cm": 0.74,
+        "median_cm": 0.75,
+        "p95_cm": 0.82,
+        "max_cm": 0.83
+      }
+    }
+  },
+  "calibration": {
+    "n": 150,
+    "spearman_new_c_depth_vs_error": -0.307,
+    "spearman_old_depth_conf_vs_error": -0.151,
+    "spearman_new_c_depth_vs_depth_only_error": -0.256,
+    "spearman_old_depth_conf_vs_depth_only_error": -0.295,
+    "risk_threshold_cm": 2.0,
+    "n_risky": 20,
+    "auroc_new_c_depth": 0.923,
+    "auroc_old_depth_conf": 0.712,
+    "auroc_fused_adaptive": 0.923,
+    "auroc_fused_fixed": 0.923,
+    "bins": [
+      {
+        "range": [
+          0.0,
+          0.3
+        ],
+        "new_n": 30,
+        "new_mean_cm": 0.9,
+        "old_n": 15,
+        "old_mean_cm": 0.96
+      },
+      {
+        "range": [
+          0.3,
+          0.6
+        ],
+        "new_n": 10,
+        "new_mean_cm": 0.7,
+        "old_n": 10,
+        "old_mean_cm": 0.7
+      },
+      {
+        "range": [
+          0.6,
+          0.8
+        ],
+        "new_n": 105,
+        "new_mean_cm": 0.65,
+        "old_n": 0,
+        "old_mean_cm": null
+      },
+      {
+        "range": [
+          0.8,
+          1.0
+        ],
+        "new_n": 5,
+        "new_mean_cm": 0.7,
+        "old_n": 125,
+        "old_mean_cm": 0.67
+      }
+    ],
+    "see_through_glass": {
+      "old_depth_conf_mean": 0.998,
+      "new_c_depth_mean": 0.08,
+      "matte_c_depth_mean": 0.771
+    }
+  }
+}

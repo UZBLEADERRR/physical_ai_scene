@@ -52,6 +52,7 @@ class ObjectInstance3D:
     fusion_mode: str = "adaptive"
     fusion_weights: dict = field(default_factory=dict)
     fused_confidence: float = 0.0
+    confidence_terms: dict = field(default_factory=dict)  # C_det, C_mask, C_depth = r_valid·exp(−σ_Z/τ)
     # --- depth reliability (Week 7) ------------------------------------
     depth_status: str = "ok"  # ok | transparent_suspected | no_depth
     depth_reliability: dict = field(default_factory=dict)

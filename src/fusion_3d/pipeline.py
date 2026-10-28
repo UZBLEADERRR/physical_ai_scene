@@ -17,6 +17,7 @@ from . import geometry as geo
 from .depth_reliability import assess as assess_depth
 from .depth_reliability import depth_geometry_usable
 from .mask_plane import estimate_from_mask
+from .confidence import confidence_terms, reject_depth_spikes
 from .fusion import (
     ModalityQuality,
     depth_quality,
@@ -138,10 +139,13 @@ def process_frame(
         #    For the same reason only the eroded mask interior is used: SAM's border bleed onto
         #    neighbouring objects would otherwise pass as "genuine" glass points.
         suspicious = rel is not None and rel.status != "ok"
-        if suspicious:
-            pts, uv = deproject_mask(raw, erode(obs.mask, rcfg.get("erode_px", 3)), intr)
-        else:
-            pts, uv = deproject_mask(depth, obs.mask, intr)
+        src, m = (raw, erode(obs.mask, rcfg.get("erode_px", 3))) if suspicious else (depth, obs.mask)
+        #    Specular spikes (shiny surfaces) survive both filters above; drop them against the local
+        #    median — but not on see-through objects, where the local median is the desk behind them.
+        n_spikes = 0
+        if rel is not None and rcfg.get("spike_filter", True) and leak < rcfg.get("spike_filter_max_leak", 0.3):
+            src, n_spikes = reject_depth_spikes(src, m)
+        pts, uv = deproject_mask(src, m, intr)
         cols = frame.rgb[uv[:, 1], uv[:, 0]] if len(uv) else None
         result.raw_points[oid] = pts
         clean = geo.clean_object_cloud(
@@ -174,9 +178,12 @@ def process_frame(
             semantic=float(obs.score),
             details={**rgb_details, "valid_depth_ratio": valid_ratio,
                      "inlier_ratio": clean.inlier_ratio, "n_raw": clean.n_raw,
-                     "n_after_plane": clean.n_after_plane, "n_final": clean.n_final},
+                     "n_after_plane": clean.n_after_plane, "n_final": clean.n_final,
+                     "n_depth_spikes_removed": n_spikes},
         )
         w = fusion_weights(q, mode, fcfg.get("weight_floor", 0.0))
+        terms = confidence_terms(raw, obs.mask, rel.genuine_ratio if rel else valid_ratio, obs.score,
+                                 rcfg.get("erode_px", 3))
         rel_fields = dict(depth_status=rel.status if rel else "ok",
                           depth_reliability=rel.to_dict() if rel else {},
                           geometry_source=geometry_source)
@@ -238,6 +245,7 @@ def process_frame(
                 fusion_mode=mode,
                 fusion_weights={k: round(v, 4) for k, v in w.items()},
                 fused_confidence=round(fused_confidence(q, w), 4),
+                confidence_terms=terms,
                 **rel_fields,
             )
         )
