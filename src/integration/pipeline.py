@@ -101,13 +101,13 @@ class Pipeline:
         return load_semantic_observations(path, skipped), skipped, path
 
     # ------------------------------------------------------------ per frame
-    def process(self, frame_dir, T_map_camera=None) -> dict:
+    def process(self, frame_dir, T_map_camera=None, force_tf=False) -> dict:
         frame_dir = Path(frame_dir)
         name = frame_dir.name
         t = {}
         t0 = time.perf_counter()
         frame = load_frame(frame_dir)                                       # S1
-        if frame.T_map_camera is None and T_map_camera is not None:
+        if T_map_camera is not None and (frame.T_map_camera is None or force_tf):
             frame.T_map_camera = np.asarray(T_map_camera, dtype=float)
         t["s1_load"] = time.perf_counter() - t0
 

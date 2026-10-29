@@ -5,6 +5,7 @@
     python main_pipeline.py --bag data/bags/<S1 bag> --every 10 --query "Find a cup that is not near the laptop"
     python main_pipeline.py --s3 live                         # run YOLO-World + SAM instead of replaying S3 output
     python main_pipeline.py --parser ollama                   # force the local LLM (default: auto)
+    python main_pipeline.py --bag <bag> --camera-tf auto      # S1: measure camera height / pitch from the desk
 
 Order: S1 frames -> S3 masks -> S2 3D objects -> S6 IDs -> S4 scene graph -> S5 verified answer
        -> S6 ActionGoal -> virtual twin. Outputs go to outputs/pipeline/ (see docs/s7/README.md).
@@ -25,7 +26,6 @@ DEMO_FRAMES = Path("data/demo/desk_sequence")
 def run(frames=None, bag=None, query=None, out="outputs/pipeline", s3=None, parser=None, every=1, limit=None,
         config=None, quiet=False, camera_tf=None):
     cfg = load_config(config)
-    T = json.loads(Path(camera_tf).read_text(encoding="utf-8"))["T_map_camera"] if camera_tf else None
     pipe = Pipeline(out, cfg, s3_mode=s3, parser=parser)
     if bag:
         dirs = frames_from_bag(bag, Path(out) / "frames", every=every, limit=limit)
@@ -37,9 +37,20 @@ def run(frames=None, bag=None, query=None, out="outputs/pipeline", s3=None, pars
             generate(src)
         dirs = frame_dirs(src)[::every][:limit]
     log = (lambda *a: None) if quiet else print
+    T, force = None, False
+    if camera_tf == "auto":                         # S1: measure the TF from the desk plane of the first frames
+        from src.preprocessing.frame_loader import load_frame
+        from src.sensors.static_tf import estimate
+
+        est = estimate([load_frame(d) for d in dirs[:5]])
+        T, force = est["T_map_camera"], True
+        log(f"[S1] measured static TF: camera {est['camera_height_m']:.3f} m above the desk, "
+            f"{est['pitch_below_horizontal_deg']:.1f} deg below horizontal")
+    elif camera_tf:
+        T = json.loads(Path(camera_tf).read_text(encoding="utf-8"))["T_map_camera"]
     log(f"[S7] {len(dirs)} frames | S3={pipe.s3_mode} | S5 parser={pipe.parser} | out={out}")
     for d in dirs:
-        r = pipe.process(d, T_map_camera=T)
+        r = pipe.process(d, T_map_camera=T, force_tf=force)
         log(f"  {r['frame']}: {r['n_objects']} objects, {r['n_rejected']} rejected, "
             f"{r['timings_ms']['total']:.0f} ms  ids={sorted(set(r['ids'].values()))}")
     result = pipe.ask(query or cfg["default_query"])
@@ -73,7 +84,8 @@ def main():
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--config", default=None)
     ap.add_argument("--camera-tf", default=None,
-                    help="JSON with T_map_camera (S1 calibration) for frames that carry none, e.g. bag exports")
+                    help="JSON with T_map_camera (S1 static_tf.json) for frames that carry none, e.g. bag exports; "
+                         "'auto' measures it from the desk plane (src/sensors/static_tf.py) and uses it for every frame")
     a = ap.parse_args()
     _, summary = run(a.frames, a.bag, a.query, a.out, a.s3, a.parser, a.every, a.limit, a.config,
                      camera_tf=a.camera_tf)
