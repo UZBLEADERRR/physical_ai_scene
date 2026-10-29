@@ -1,0 +1,15 @@
+# S3 alias table (roadmap §11.3 P1: "alias normalisation (mug / cup, multimeter / digital multimeter)").
+# canonical name: [aliases]. Matching is case-insensitive and ignores surrounding spaces.
+# Used by src/open_vocab/aliases.py (evaluation and label_candidates clean-up); S3 owns this list.
+mug: [cup, coffee mug, coffee cup, tea cup, white mug]
+drinking glass: [glass, water glass, tumbler]
+laptop: [notebook computer, laptop computer]
+book: [notebook, textbook]
+smartphone: [phone, mobile phone, cell phone, black smartphone]
+computer mouse: [mouse]
+game controller: [gamepad, controller, joystick]
+digital multimeter: [multimeter, voltage meter, voltmeter, device used to measure voltage, electrical measuring instrument]
+soldering iron: [soldering tool, soldering pen, tool used to melt solder, electronics soldering tool]
+vernier caliper: [caliper, sliding caliper, tool used to measure thickness, precision measuring tool]
+hot glue gun: [glue gun, hot melt gun, tool used to apply hot glue, adhesive applicator]
+portable lidar scanner: [lidar, lidar sensor, laser scanner, device that measures distance with lasers, 3d scanning device]
