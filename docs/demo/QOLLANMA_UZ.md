@@ -2,7 +2,8 @@
 
 > **Kim uchun:** G1 jamoasining barcha a'zolari. Platformani ishga tushiradigan, fayl yuklaydigan va
 > professor oldida demonstratsiya qiladigan har bir kishi uchun.
-> **Kod versiyasi:** branch `claude/vibrant-wozniak-yw105s`, commit `58aae72` va undan keyingilari.
+> **Kod versiyasi:** `main` branch (PR #5 merge qilingandan keyin). Yangi kodni olgach, har bir recording'da
+> **"Re-run pipeline on this recording"** tugmasini bir marta bosing (15-bo'lim, 0-qadam).
 > Sidebar'dagi `code version` yozuvi qaysi versiya ishlayotganini ko'rsatadi.
 
 ---
@@ -23,6 +24,7 @@
 12. [Muammolar va yechimlar](#12-muammolar-va-yechimlar)
 13. [Cheklovlar: professorga halol aytilishi kerak bo'lganlar](#13-cheklovlar-professorga-halol-aytilishi-kerak-bolganlar)
 14. [Ilova: fayllar, buyruqlar, sozlamalar](#14-ilova-fayllar-buyruqlar-sozlamalar)
+15. [Midterm mashqi: har bir harakatni tekshirish ro'yxati](#15-midterm-mashqi-har-bir-harakatni-tekshirish-royxati)
 
 ---
 
@@ -119,12 +121,13 @@ Bir martalik tayyorgarlik:
    ```
 3. Kodni oling:
    ```bash
-   git clone -b claude/vibrant-wozniak-yw105s https://github.com/intodakt/physical_ai_scene.git
+   git clone https://github.com/intodakt/physical_ai_scene.git
    ```
 
 Har safar ishga tushirish:
 ```bash
 cd ~/physical_ai_scene
+git checkout main
 git pull                  # eng yangi versiya
 ./G1_Demo.command         # yoki Finder'da ikki marta bosing
 ```
@@ -146,8 +149,7 @@ To'xtatish: Terminal oynasida **Ctrl+C**.
 1. Fork: https://github.com/intodakt/physical_ai_scene → **Fork** ("Copy the main branch only" belgisini
    **olib tashlang**).
 2. railway.com → New Project → Deploy from GitHub → fork'ingiz.
-3. **Settings → Source → Branch = `claude/vibrant-wozniak-yw105s`**. Agar `main` tanlansa, Railpack xatosi
-   chiqadi: "could not determine how to build".
+3. **Settings → Source → Branch = `main`** (Dockerfile endi `main`da bor).
 4. Settings → Networking → **Generate Domain**.
 5. Tavsiya: **Volume** qo'shing, mount path `/data`. Shunda yuklangan recording'lar redeploy'dan keyin ham
    saqlanib qoladi.
@@ -289,6 +291,7 @@ data/demo_store/                      (Railway/Docker'da /data/demo_store)
     ├── run_summary.json
     ├── objects/frame_XXXX_objects.json        (S2 + S6 chiqishi)
     ├── scene_graph/frame_XXXX_scene_graph.json (S4 chiqishi)
+    ├── tracking/frame_XXXX_track_state.json    (S6: track holatlari va hodisalar), event_log.jsonl
     └── points/frame_XXXX.npz                  (3D ko'rinish uchun nuqtalar)
 ```
 
@@ -404,15 +407,23 @@ YOLO-World serverda yo'q.
 | Ko'k chiziq | Joriy frame |
 | Trajectories | Har bir ID'ning shu paytgacha bo'lgan yo'li (yuqoridan) |
 | Moved since last frame | Har ID oldingi frame'dan qancha siljigani (sm) |
+| **Events up to this frame** | APPEARED / MOVED / OCCLUDED / REAPPEARED / PICKED_UP / PLACED_ON / REMOVED (eng yangisi tepada) |
 
-**Qoida (Week-5 baseline):** bir xil label va markaz 15 sm dan kam siljigan bo'lsa → bir xil ID. Ko'rinmay
-qolgan obyekt 10 frame xotirada saqlanadi.
+**Qoida (`src/tracking/tracker.py`, MultiTermTracker):** har frame'da tracker'lar va detection'lar
+Hungarian usuli bilan juftlanadi. Narx = pozitsiya (tezlik bo'yicha oldindan aytilgan joyga, 15 sm gate) +
+label (+ umumiy label nomzodlari) + o'lcham. Yashirin obyekt 10 frame xotirada turadi va **60 sm** gacha
+uzoqda qaytsa ham o'sha ID'ni oladi (qo'lda olib, boshqa joyga qo'yish). Ishonch har yashirin frame'da ×0,85.
 
-**Kutiladigan natija (sintetik):** `mug_01` har frame ~1,3 sm siljiydi, ID o'zgarmaydi. `book_01`
-4–5-frame'larda sariq, 6-frame'da yana yashil va **o'sha ID** bilan qaytadi. Jami 0 ta ID almashinuvi.
+**Kutiladigan natija (sintetik):** 0-frame'da 5 ta APPEARED. `book_01` 4-frame'da OCCLUDED (sariq), 6-frame'da
+REAPPEARED va **o'sha ID** bilan qaytadi. `mug_01` har frame ~1,3 sm siljiydi, ID o'zgarmaydi (u to'xtamagani
+uchun MOVED chiqmaydi). Jami 0 ta ID almashinuvi.
 
-**Halol eslatma:** bu kod S7 integratsiyasidagi vaqtinchalik `s6_placeholder.py`. S6'ning o'z `src/tracking`
-moduli hali merge qilinmagan.
+**Halol eslatma:** bu kod Claude Code (AI) yozgan reference implementation; S6 uni ko'rib chiqadi
+(`docs/s6/README.md`). S6 W5 da ko'rsatgan baseline o'zgarmagan holda `src/integration/s6_placeholder.py` da
+turadi va `scripts/s6_tracking_eval.py` ikkalasini solishtiradi.
+
+**Muhim:** yangi kodni olgandan keyin eski recording'lar eski tracker bilan ishlangan bo'ladi va Events jadvali
+bo'sh chiqadi. Sidebar → **Re-run pipeline on this recording**.
 
 ### 9.6 S4 Scene Graph — Jaloliddin
 | Element | Ma'nosi |
@@ -498,17 +509,21 @@ Ogohlantirishlar (⚠) nimani bildiradi:
 | ActionGoal | `target_object_id`, `target_pose [x, y, yaw]`, `validated`, `reason` |
 | Virtual-twin simulation | `executed`, `success`, `collisions`, `final_error_m`, `steps` |
 
-**Qoidalar (`src/integration/s6_placeholder.py`, `configs/s7_integration.yaml`):**
-1. S5 javobi tasdiqlanmagan bo'lsa → goal yuborilmaydi: *"S5 could not verify a target; no goal sent"*.
-2. Exclusion zone faqat **`laptop`** labelli obyektlar atrofida quriladi (`exclusion_labels: [laptop]`),
+**Qoidalar (`src/planning/action.py` — ActionGoal v2, `configs/s7_integration.yaml`):**
+1. S5 javobi tasdiqlanmagan bo'lsa → `TARGET_UNVERIFIED`, goal yuborilmaydi.
+2. Nishon hozir **yashirin** (occluded) bo'lsa → `TARGET_OCCLUDED`: joyi faqat xotirada, hozir tasdiqlanmagan.
+3. Exclusion zone faqat **`laptop`** labelli obyektlar atrofida quriladi (`exclusion_labels: [laptop]`),
    3 sm zaxira bilan. Yashirin obyektlar uchun zone qurilmaydi.
-3. Agent nishonga **to'g'ri chiziq** bo'ylab boradi. Chiziq nishondan boshqa biror zone'ni kesib o'tsa →
-   `validated: false`, *"path crosses exclusion zone of laptop_01"*.
-4. Simulatsiya 1 sm qadam bilan yuradi. `success` = zone'ga hech kirmadi va nishonga 5 sm dan yaqin keldi.
+4. Nishon zone **ichida** bo'lsa (masalan, laptopga 3 sm dan yaqin stakan) → `TARGET_IN_EXCLUSION_ZONE`.
+5. Agent nishonga **to'g'ri chiziq** bo'ylab boradi (`planner: straight`). Chiziq zone'ni kesib o'tsa →
+   `PATH_BLOCKED`. `planner: detour` qilinsa, A* bilan zone'larni aylanib o'tuvchi yo'l qidiriladi (`OK_DETOUR`).
+6. Nishon ishonchi 0,3 dan past bo'lsa, goal yuboriladi, lekin `LOW_TARGET_CONFIDENCE` ogohlantirishi chiqadi.
+7. Simulatsiya 1 sm qadam bilan yuradi. `success` = zone'ga hech kirmadi va nishonga 5 sm dan yaqin keldi.
 
-**Kutiladigan natijalar (sintetik):** "Go to the mug" → ✓ validated. "Go to the glass" va "What is closest to
-the laptop?" (javob glass) → ✗ rejected, chunki yo'l laptop orqali o'tadi. Real bag'da **laptop yo'q**, shuning
-uchun zone yo'q va har bir tasdiqlangan javob ✓ bo'ladi.
+**Kutiladigan natijalar (sintetik):** "Go to the mug" → ✓ `OK`. "Go to the glass" va "What is closest to the
+laptop?" (javob glass) → ✗ `TARGET_IN_EXCLUSION_ZONE`, chunki stakan laptopning xavfsizlik zonasida turibdi.
+**4- yoki 5-frame'da** "Go to the book" → ✗ `TARGET_OCCLUDED` (kitob qo'l ostida). Real bag'da **laptop yo'q**,
+shuning uchun zone yo'q va har bir tasdiqlangan, ko'rinib turgan nishon ✓ bo'ladi.
 
 ### 9.9 S7 Integration — Mirzokhidbek
 | Element | Ma'nosi |
@@ -530,7 +545,8 @@ S5→S6 (reasoning result), S6→twin (action goal).
 ## 10. Demonstratsiya stsenariysi (qadam-baqadam)
 
 **Tayyorgarlik (taqdimotdan 30 daqiqa oldin):**
-1. MacBook'da `git pull` → `./G1_Demo.command`.
+1. MacBook'da `git checkout main && git pull` → `./G1_Demo.command`. Yangi kod kelgan bo'lsa, har bir recording'da
+   **Re-run pipeline on this recording**.
 2. Sidebar'da **code version** va **S5 parser in use: ollama** ni tekshiring.
 3. Real bag allaqachon import qilingan bo'lsin (7-bo'lim). Import'ni taqdimot paytida qilmang, bir necha
    daqiqa oladi.
@@ -546,13 +562,14 @@ S5→S6 (reasoning result), S6→twin (action goal).
 | 3 | S1 | **S1 Sensors** | Depth va intrinsics manbasini ko'rsatish | "camera_info'dan olingan intrinsics, TF'dan kamera balandligi" |
 | 4 | S3 | **S3 Perception** | Jadval va maskalar | "Training'siz, matn bo'yicha 8 ta obyekt. Scorelar S2/S4 ga ehtiyotkorlik uchun uzatiladi" |
 | 5 | S2 | **S2 3D Fusion** | 3D'ni aylantirish, depth confidence grafigi | "Mask + depth → 3D box. Past ishonchli obyektlar (white mug) belgilanadi" |
-| 6 | S6 | Recording = **sintetik**, **S6 Tracking** | Timeline | "Book 2 frame yashirildi, o'sha ID bilan qaytdi; mug 9 sm siljidi, ID o'zgarmadi" |
+| 6 | S6 | Recording = **sintetik**, **S6 Tracking** | Timeline va Events jadvali | "Book 2 frame yashirildi (OCCLUDED), o'sha ID bilan qaytdi (REAPPEARED); mug 9 sm siljidi, ID o'zgarmadi" |
 | 7 | S4 | Real bag, **S4 Scene Graph** | Munosabat ustiga sichqoncha olib borish | "Har bir edge o'z isbotiga ega: distance_m, vertical_gap_m" |
 | 8 | S4 | Sintetik, Frame slider 2 → 3 | "Changes since previous frame" | `+ laptop_01 near mug_01` paydo bo'ladi |
 | 9 | S5 | Real bag, **S5 Reasoning** | "What is closest to the apple?" | Javob, masofa isboti, past ishonch ogohlantirishi |
 | 10 | S5 | | "Where is the portable lidar scanner?" | **Cannot determine**: "LLM taxmin qilmaydi, geometriya isbotlay olmasa rad etadi" |
-| 11 | S6 | Sintetik, S5'da "Go to the glass" → **S6 Action** | Twin | **rejected ✗** — yo'l laptop zone'ini kesib o'tadi |
-| 12 | S6 | S5'da "Go to the mug" → S6 Action | | **validated ✓**, `success: true` |
+| 11 | S6 | Sintetik, S5'da "Go to the glass" → **S6 Action** | Twin | **rejected ✗** `TARGET_IN_EXCLUSION_ZONE` — stakan laptopning xavfsizlik zonasida |
+| 12 | S6 | S5'da "Go to the mug" → S6 Action | | **validated ✓** `OK`, `success: true` |
+| 12b | S6 | Sintetik, **Frame = 4** (⏸), S5'da "Go to the book" → S6 Action | | **rejected ✗** `TARGET_OCCLUDED` — "kitob hozir ko'rinmayapti, joyi faqat xotirada; robotni xotiradagi joyga yubormaymiz" |
 | 13 | S7 | **S7 Integration** | Latency va contract | "0 contract xatosi; S2 vaqtning ~97% ini oladi, optimizatsiya rejada" |
 
 **Muhim nozik joylar:**
@@ -614,7 +631,7 @@ bir xil verifier hisoblaydi, shuning uchun bir xil intent JSON → bir xil javob
 | `no synchronized RGB/depth pair … exported: 0` | Eski kod (vaqt moslash bug'i) | 7.2-bo'lim, 10-bosqich. `69cf76e` yoki undan keyingi commit kerak |
 | "paired by order: CHECK…" | S3 vaqtlari bag'ga mos kelmadi | S3 sahifasida maskalarni tekshiring. Siljigan bo'lsa, Li'dan qaysi frame'larda ishlaganini so'rang |
 | "no frame has S3 masks…" | S3 zip yuklanmagan yoki juftlanmagan | S3 zip'ni yuklang. Bir nechta bag bo'lsa, nomlash qoidasi (6.2) |
-| "Railpack could not determine how to build" | Railway `main` branchni build qilyapti | Settings → Source → Branch = `claude/vibrant-wozniak-yw105s` |
+| "Railpack could not determine how to build" | Railway eski (Dockerfile'siz) commit'ni build qilyapti | Settings → Source → Branch = `main`, keyin Redeploy |
 | Railway'da repo ko'rinmaydi | Repo `intodakt` akkauntida | Fork qiling yoki `intodakt` Railway'ga ruxsat bersin |
 | Cloud Run'da yuklash xatosi | 32 MB cheklovi | Google Drive linki |
 | `S5 parser in use: rules` (Mac'da) | Ollama ishlamayapti | Ollama ilovasini oching, launcher'ni qayta ishga tushiring |
@@ -626,12 +643,13 @@ bir xil verifier hisoblaydi, shuning uchun bir xil intent JSON → bir xil javob
 
 1. **S3 replay.** Platforma YOLO-World'ni jonli ishlatmaydi, S3'ning saqlangan natijasini ko'rsatadi.
    Jonli rejim `WITH_S3_LIVE=1` bilan mumkin, lekin sinalmagan.
-2. **S6 tracking — vaqtinchalik kod.** 15 sm gate va 10 frame xotira (Week-5 baseline). Hungarian multi-cue
-   W10 rejasida.
+2. **S1 / S3 / S6 dagi yangi kod — AI yozgan reference implementation.** S6 tracker va ActionGoal v2, S1
+   kalibrlash / static TF / session report, S3 alias va baholash vositalari Claude Code bilan yozilgan; egalari
+   ko'rib chiqadi. S1 va S6 kodi faqat sintetik ma'lumotda tekshirilgan (`docs/s1/`, `docs/s6/`).
 3. **Exclusion zone faqat laptop.** Konfiguratsiyada o'zgartiriladi (`exclusion_labels`).
 4. **Rules parser oddiy.** Bulutda Ollama yo'q, murakkab gaplar uchun Mac'dagi LLM kerak.
-5. **Temporal hodisalar yo'q.** Edge tarixi saqlanadi, lekin `MOVED`/`PICKED_UP` kabi hodisalar va "where
-   before?" savollari hali yo'q (W11).
+5. **Temporal savollar yo'q.** S6 endi hodisalarni (`MOVED`, `OCCLUDED`, ...) va har bir ID tarixini yozadi,
+   lekin S5 hali "where was the mug before?" kabi savollarni qabul qilmaydi (W11).
 6. **Intrinsics fallback nominal.** Bag'da `camera_info` bo'lmasa, ZED Mini datasheet qiymatlari ishlatiladi.
    S1 haqiqiy qiymatlarni qo'yishi kerak.
 7. **Ba'zi metrikalar sintetik ma'lumotda o'lchangan** (11/11, 7/7, 2/2, 0 ID switch). Real bag'dagi
@@ -654,7 +672,11 @@ bir xil verifier hisoblaydi, shuning uchun bir xil intent JSON → bir xil javob
 | `src/integration/pipeline.py` | S1→S3→S2→S6→S4 pipeline, S5→S6 savol, vaqt o'lchash, contract tekshiruvi |
 | `src/integration/contracts.py` | 5 ta JSON contract tekshiruvi |
 | `src/integration/s5_adapter.py`, `rule_parser.py` | S5 kodini jonli grafda chaqirish, offline parser |
-| `src/integration/s6_placeholder.py` | Tracker, ActionGoal, virtual twin simulatsiyasi |
+| `src/tracking/tracker.py` | S6: MultiTermTracker (ID, holat, hodisalar) |
+| `src/planning/action.py` | S6: ActionGoal v2, reason code'lar, detour planner, virtual twin simulatsiyasi |
+| `src/integration/s6_placeholder.py` | S6 Week-5 baseline (solishtirish uchun) |
+| `src/sensors/calibration.py`, `static_tf.py`, `session_report.py` | S1: kalibrlash, o'lchangan TF, FPS/sync/depth hisoboti |
+| `src/open_vocab/evaluate.py`, `aliases.py` | S3: seen/unseen P/R/F1, alias jadvali |
 | `src/fusion_3d/` | S2: 3D, depth ishonchliligi, fusion |
 | `src/scene_graph/` | S4: graf va qoidalar |
 | `src/reasoning/` | S5: parser (Ollama) va verifier |
@@ -671,7 +693,12 @@ python -m demo.runs --url <Drive link>           # linkdan import
 python -m demo.runs --rerun S1_static_bag --parser ollama
 python -m demo.pack --src recordings/ --out G1_bags.zip
 python -m pytest -q && python tests/smoke_test.py   # testlar
+python main_pipeline.py --bag <bag> --camera-tf auto  # S1: TF'ni stol tekisligidan o'lchab ishlatish
+python -m src.sensors.session_report --bag <bag> --out reports/<bag>/   # S1: FPS, sync, depth sifati
+python scripts/s6_tracking_eval.py                    # S6: baseline vs yangi tracker
+python scripts/s2_week9_ablation.py                   # S2: F1 vs F2 ablation
 ```
+Mac'da `python` o'rniga `.venv/bin/python` yozing (launcher yaratgan muhit).
 
 ### 14.3 Asosiy sozlamalar
 | Parametr | Qiymat | Fayl |
@@ -684,10 +711,87 @@ python -m pytest -q && python tests/smoke_test.py   # testlar
 | `near` | < 0,30 m | `src/scene_graph/rules.py` |
 | `on` | gap < 3 sm, overlap ≥ 30% | `src/scene_graph/rules.py` |
 | `left_of` | > 5 sm (kamera) | `src/scene_graph/rules.py` |
-| Tracking gate / xotira | 15 sm / 10 frame | `configs/s7_integration.yaml` |
+| Tracking gate / xotira / qayta tanish | 15 sm / 10 frame / 60 sm | `configs/s7_integration.yaml` |
+| Planner | `straight` (yoki `detour`) | `configs/s7_integration.yaml` |
+| Past ishonch ogohlantirishi (S6) | 0,3 | `configs/s7_integration.yaml` |
 | Past ishonch chegarasi (S5) | 0,6 | `src/reasoning/verifier.py` |
 | Agent start | (0,25; 0,00) m | `configs/s7_integration.yaml` |
 | Exclusion | laptop, +3 sm | `configs/s7_integration.yaml` |
 | Nishonga yetish toleransi | 5 sm | `configs/s7_integration.yaml` |
 | Standart savol | "Go to the mug" | `configs/s7_integration.yaml` |
 | LLM modeli | `qwen2.5:3b` (`S5_MODEL`) | `src/reasoning/query_parser.py` |
+
+---
+
+## 15. Midterm mashqi: har bir harakatni tekshirish ro'yxati
+
+Midtermdan oldin shu ro'yxatni **boshidan oxirigacha bir marta** bajaring. Har bir qatorda: nima qilinadi,
+nima chiqishi kerak (✓ mezon). Biror qator ✓ bo'lmasa, 12-bo'limga qarang yoki Terminal matnini Claude'ga yuboring.
+"Sintetik" qiymatlar aniq (kod bir xil natija beradi); "real bag" qiymatlari taxminiy, sizning bag'ingizga bog'liq.
+
+### 15.0 Tayyorgarlik
+| # | Harakat | ✓ mezon |
+|---|---|---|
+| 0.1 | `cd ~/physical_ai_scene && git checkout main && git pull` | `Already up to date` yoki yangi fayllar ro'yxati, xatosiz |
+| 0.2 | `./G1_Demo.command` | Brauzerda `http://localhost:8501` ochiladi |
+| 0.3 | Sidebar: **code version** | `main` dagi oxirgi commit (GitHub'dagi bilan bir xil) |
+| 0.4 | Sidebar: **S5 parser in use** | `ollama` (Ollama ilovasi ochiq bo'lsa) |
+| 0.5 | Har bir recording'ni tanlab **Re-run pipeline on this recording** | Progress tugaydi, xato yo'q. Shundan keyin S6 Events jadvali to'ladi |
+| 0.6 | Wi-Fi'ni o'chirib, sahifani yangilang | Hammasi ishlayveradi (internet kerak emas) |
+
+### 15.1 Sintetik yozuv (`demo_synthetic_desk`) — aniq natijalar
+| # | Sahifa | Harakat | ✓ mezon |
+|---|---|---|---|
+| 1.1 | Sidebar | ⏮ Start → ▶ Play → ⏸ | Frame 0 → 7 gacha o'tadi va to'xtaydi |
+| 1.2 | Overview | Frame 0 | 7 ta karta, har birida qiymat; contract xatosi yo'q |
+| 1.3 | S1 Sensors | Frame 0 | intrinsics `source: camera_info`; kamera balandligi **0,600 m**, pitch **45,0°** |
+| 1.4 | S3 Perception | Frame 0 | 5 ta detection: laptop, mug, book, multimeter, glass; maskalar obyektlar ustida |
+| 1.5 | S2 3D Fusion | Frame 0 | 5 ta 3D box; glass qizil (past depth ishonchi) |
+| 1.6 | S6 Tracking | Frame 7 | Timeline: `book_01` 4–5 da sariq; Events: 5 × APPEARED, `book_01` OCCLUDED (4), REAPPEARED (6); `_02` ID yo'q |
+| 1.7 | S4 Scene Graph | Frame 2 → 3 | "Changes since previous frame": `+ laptop_01 near mug_01` |
+| 1.8 | S5 Reasoning | Frame 2, "Go to the mug" | `mug_01`, verified |
+| 1.9 | S5 | Frame 2, "Find a cup that is not near the laptop" | `mug_01 is a cup that is NOT near the laptop` |
+| 1.10 | S5 | Frame 7, xuddi shu savol | **Cannot determine** (mug endi laptop yonida) |
+| 1.11 | S5 | "Where is the portable lidar scanner?" | **Cannot determine**: not in the scene graph |
+| 1.12 | S6 Action | Frame 2, "Go to the mug" | ✓ `OK`, `success: true`, yashil yo'l |
+| 1.13 | S6 Action | Frame 2, "Go to the glass" | ✗ `TARGET_IN_EXCLUSION_ZONE`, qizil zone laptop atrofida |
+| 1.14 | S6 Action | **Frame 4**, "Go to the book" | ✗ `TARGET_OCCLUDED` |
+| 1.15 | S7 Integration | — | contract status yashil, 0 xato; S2 eng ko'p vaqt oladi |
+
+### 15.2 Real bag (masalan `S1_static_bag`)
+| # | Sahifa | Harakat | ✓ mezon |
+|---|---|---|---|
+| 2.1 | Sidebar | Recording = real bag | Ro'yxatda bor (oldin import qilingan) |
+| 2.2 | Overview | ▶ Play | Har frame'da ~8 obyekt; "paired by order" ogohlantirishi **yo'q** |
+| 2.3 | S1 Sensors | — | intrinsics manbasi (`camera_info` yoki sariq `fallback`) va TF manbasi ko'rinadi. Fallback bo'lsa, videoda shuni ayting |
+| 2.4 | S3 Perception | 2–3 frame | Maskalar real obyektlar ustida (siljimagan) |
+| 2.5 | S2 3D Fusion | — | 8 ta box; white mug va controller past depth ishonchi (0,3–0,5) |
+| 2.6 | S6 Tracking | oxirgi frame | Har obyektga **bitta** ID (8 ta), `_02` yo'q; Events'da faqat APPEARED (sahna statik) |
+| 2.7 | S4 Scene Graph | — | `on desk_01` va `near` edge'lar, har birida isbot |
+| 2.8 | S5 | preset savollar (har birini bosing) | Har biri javob yoki "Cannot determine"; past ishonchli obyektda ogohlantirish |
+| 2.9 | S6 Action | "Go to the …" (har qanday real obyekt) | ✓ `OK` (laptop yo'q → zone yo'q) |
+| 2.10 | S7 | — | 0 contract xatosi, frame errors bo'sh |
+
+### 15.3 Buyruq satridan (S1, S2, S6 yangi vositalar) — Terminal'da, `~/physical_ai_scene` ichida
+Avval bir marta: `~/.local/bin/uv pip install --python .venv/bin/python matplotlib pytest`
+
+| # | Buyruq | ✓ mezon |
+|---|---|---|
+| 3.1 | `.venv/bin/python -m pytest -q` | `110 passed` (yoki ko'proq), `failed` yo'q |
+| 3.2 | `.venv/bin/python tests/smoke_test.py` | `SMOKE TEST PASSED` |
+| 3.3 | `.venv/bin/python main_pipeline.py` | oxirida `contract errors: 0`, `validated=True` |
+| 3.4 | `.venv/bin/python -m src.sensors.static_tf --frames data/demo_store/datasets/<real bag>/frames --out reports/<real bag>/` | **S1 uchun birinchi real o'lchov:** kamera balandligi va pitch chiqadi. S2 avval ≈ 0,32 m va ≈ 52° ni ko'rgan; shunga yaqin bo'lsa ✓. `vs_config` placeholder 0,80 m bilan farqni ko'rsatadi |
+| 3.5 | `.venv/bin/python -m src.sensors.session_report --bag <bag yo'li> --frames data/demo_store/datasets/<real bag>/frames --out reports/<real bag>/` | `session_meta.json` (FPS ≈ 30?, RGB↔depth farqi ms) va `depth_quality.csv` (har obyekt uchun valid depth %) |
+| 3.6 | `.venv/bin/python scripts/s6_tracking_eval.py` | jadval: relocation'da baseline 1 ID switch, yangi tracker 0 |
+| 3.7 | `.venv/bin/python scripts/s2_week9_ablation.py && .venv/bin/python scripts/s2_week9_ablation.py --plot` | p95: F1 7,74 / depth only 5,26 / adaptive 1,04 sm; `docs/s2/week9/` da 2 ta rasm |
+
+3.4 va 3.5 natijalarini S1 (Muzaffar) o'z hujjati va videosiga **o'zining real o'lchovi** sifatida qo'shishi
+mumkin — buyruqni o'zi ishga tushirsin. `reports/` papkasi git'ga qo'shilmaydi.
+
+### 15.4 Video yozish mashqi
+| # | Harakat | ✓ mezon |
+|---|---|---|
+| 4.1 | OBS / Cmd+Shift+5 bilan 1 daqiqa sinov | Ovoz aniq, ekran o'qiladi |
+| 4.2 | Skript (2-monitor) bo'yicha birinchi 3 blokni o'qing | Vaqt rejaga yaqin (blok 1–3 ≈ 2:45) |
+| 4.3 | Demo ko'rsatiladigan blokda (skriptda "demo platforma" deb yozilgan) platformaga o'tish | Kerakli sahifa oldindan ochiq, Alt/Cmd+Tab bilan o'tiladi |
+

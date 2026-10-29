@@ -10,10 +10,10 @@ produced:
 | S1 Sensors | Muzaffar | RGB, depth heat-map, `camera_intrinsics.yaml` (camera_info or fallback), `T_map_camera` (height, pitch), bag topics / rates / sync stats |
 | S3 Perception | Li Yizhe | YOLO-World boxes + SAM 2 masks, label candidates, scores, seen / unseen split, mask cut-outs |
 | S2 3D Fusion | Sarvar | point cloud + gravity-aligned 3D boxes, centroids, sizes, depth confidence (glass in red), fusion weights, ObjectInstance3D JSON |
-| S6 Tracking | Erkinov Shakhzodjon | persistent-ID timeline (observed / occluded), top-down trajectories, motion per frame |
+| S6 Tracking | Erkinov Shakhzodjon | persistent-ID timeline (observed / occluded), top-down trajectories, motion per frame, events (APPEARED / MOVED / OCCLUDED / REAPPEARED / …) |
 | S4 Scene Graph | Jaloliddin | graph drawn on the desk layout, relation filter, changes since the previous frame, edge table with metric proof and start/end times |
 | S5 Reasoning | Kurbonaliyev Sanjarbek | chat, parsed intent JSON, geometric proof, "Cannot determine" refusals, query suite |
-| S6 Action | Erkinov Shakhzodjon | ActionGoal (validated / rejected + reason), exclusion zones, virtual-twin simulation |
+| S6 Action | Erkinov Shakhzodjon | ActionGoal v2 (validated / rejected + reason code), exclusion zones, path, virtual-twin simulation |
 | S7 Integration | Mirzokhidbek | per-stage and per-frame latency, p95, FPS, contract checks, downloads, reproduce commands |
 
 The sidebar has **▶ Play / ⏸ Pause / ⏮ Start**, a speed selector and a frame slider.
@@ -68,7 +68,7 @@ whole system, including the local LLM, runs on the laptop:
 
 1. Install Ollama from https://ollama.com/download (drag it to Applications, open it once), and
    Homebrew (https://brew.sh): Open3D on macOS needs `brew install libusb libomp` (the launcher runs it).
-2. `git clone -b claude/vibrant-wozniak-yw105s https://github.com/intodakt/physical_ai_scene.git`
+2. `git clone https://github.com/intodakt/physical_ai_scene.git`
 3. In Finder, double-click **`G1_Demo.command`** (first time: right-click → Open → Open).
 
 The first run installs Python 3.11 and the packages, and pulls `qwen2.5:3b` (about 2 GB). Later runs start

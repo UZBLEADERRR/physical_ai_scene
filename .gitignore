@@ -225,3 +225,6 @@ outputs/pipeline/
 outputs/smoke_test/
 outputs/evaluation/run/
 data/demo_store/
+
+# local S1/S3 reports (docs/demo/QOLLANMA_UZ.md §15.3)
+reports/
