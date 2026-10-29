@@ -1,0 +1,36 @@
+# S7 — integration / launch configuration. All paths are relative to the repository root.
+
+stages:
+  # S3: "replay" uses the observation.json already in each frame folder (written by S3's run.py
+  # or by S2's mock generator). "live" runs YOLO-World + SAM (needs ultralytics + weights).
+  s3_mode: replay
+  s3_config: src/open_vocab/configs/desk.json
+  # S5: "auto" uses the local Ollama model if the server answers, else the offline rule parser.
+  # "ollama" forces the LLM, "rules" forces the offline parser.
+  s5_parser: auto
+
+scene_graph:
+  desk_top_z: 0.0          # desk surface height in the map frame (S1 calibration)
+
+# S6 tracking (src/tracking/tracker.py, MultiTermTracker).
+tracking:
+  gate_m: 0.15             # visible object: moved < 15 cm per frame (after velocity prediction) -> same ID
+  max_missed_frames: 10    # hidden objects are kept for N frames (occluded), then REMOVED
+  reid_gate_m: 0.60        # a hidden object may come back this far away (picked up and put down)
+  move_threshold_m: 0.03   # rest position changed more than this -> MOVED event
+  confidence_decay: 0.85   # track confidence x this per hidden frame
+
+# S6 action (src/planning/action.py, ActionGoal v2).
+action:
+  planner: straight                # straight (Week-5 rule: blocked straight line = rejected) | detour (A* around zones)
+  min_target_confidence: 0.3       # below this the goal is still sent, with a LOW_TARGET_CONFIDENCE warning
+  workspace_bounds: [0.0, 1.4, -0.6, 0.6]   # detour planner grid (map frame, metres)
+  grid_m: 0.01
+  clearance_m: 0.02                # detour keeps this distance from every zone
+  agent_start: [0.25, 0.00]        # virtual agent (map frame, metres) at the front edge of the desk
+  exclusion_labels: [laptop]       # objects the agent must never cross
+  exclusion_margin_m: 0.03         # zone = object footprint inflated by this margin
+  reach_tolerance_m: 0.05          # sim-to-real: goal must land within this of the target
+  step_m: 0.01                     # virtual agent step when simulating the path
+
+default_query: "Go to the mug"

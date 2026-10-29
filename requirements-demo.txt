@@ -1,0 +1,15 @@
+# Cloud demo image (Dockerfile): everything except YOLO-World/torch (S3 masks are replayed).
+# Versions are the ones the demo was tested with; requirements.txt stays the team's dev environment.
+numpy==2.4.6
+pyyaml==6.0.3
+pillow==13.0.0
+opencv-python-headless==5.0.0.93
+rosbags==0.11.9
+open3d==0.20.0
+networkx==3.6.1
+ollama==0.6.3
+streamlit==1.66.1
+plotly==7.1.0
+pandas==3.1.0
+pyvis==0.3.2
+gdown==6.4.2

@@ -1,0 +1,118 @@
+{
+  "seeds": 10,
+  "frames_per_scenario": 30,
+  "scenarios": {
+    "static": {
+      "baseline": {
+        "id_switches": 0.0,
+        "reid_total": 0.0,
+        "reid_ok": 0.0,
+        "events_total": 0.0,
+        "events_found": 0.0,
+        "event_delay_frames": null
+      },
+      "multi_term": {
+        "id_switches": 0.0,
+        "reid_total": 0.0,
+        "reid_ok": 0.0,
+        "events_total": 0.0,
+        "events_found": 0.0,
+        "event_delay_frames": null
+      }
+    },
+    "relocation": {
+      "baseline": {
+        "id_switches": 1.0,
+        "reid_total": 1.0,
+        "reid_ok": 0.0,
+        "events_total": 3.0,
+        "events_found": 0.0,
+        "event_delay_frames": null
+      },
+      "multi_term": {
+        "id_switches": 0.0,
+        "reid_total": 1.0,
+        "reid_ok": 1.0,
+        "events_total": 3.0,
+        "events_found": 3.0,
+        "event_delay_frames": 0.0
+      }
+    },
+    "occlusion": {
+      "baseline": {
+        "id_switches": 0.0,
+        "reid_total": 1.0,
+        "reid_ok": 1.0,
+        "events_total": 2.0,
+        "events_found": 0.0,
+        "event_delay_frames": null
+      },
+      "multi_term": {
+        "id_switches": 0.0,
+        "reid_total": 1.0,
+        "reid_ok": 1.0,
+        "events_total": 2.0,
+        "events_found": 2.0,
+        "event_delay_frames": 0.0
+      }
+    },
+    "slide": {
+      "baseline": {
+        "id_switches": 0.0,
+        "reid_total": 0.0,
+        "reid_ok": 0.0,
+        "events_total": 1.0,
+        "events_found": 0.0,
+        "event_delay_frames": null
+      },
+      "multi_term": {
+        "id_switches": 0.0,
+        "reid_total": 0.0,
+        "reid_ok": 0.0,
+        "events_total": 1.0,
+        "events_found": 0.9,
+        "event_delay_frames": 1.0
+      }
+    },
+    "crossing": {
+      "baseline": {
+        "id_switches": 0.4,
+        "reid_total": 0.0,
+        "reid_ok": 0.0,
+        "events_total": 0.0,
+        "events_found": 0.0,
+        "event_delay_frames": null
+      },
+      "multi_term": {
+        "id_switches": 0.0,
+        "reid_total": 0.0,
+        "reid_ok": 0.0,
+        "events_total": 0.0,
+        "events_found": 0.0,
+        "event_delay_frames": null
+      }
+    }
+  },
+  "real_static_bag": {
+    "baseline": {
+      "frames": 3,
+      "objects_per_frame": [
+        8,
+        8,
+        8
+      ],
+      "same_ids_on_every_frame": true,
+      "n_ids": 8
+    },
+    "multi_term": {
+      "frames": 3,
+      "objects_per_frame": [
+        8,
+        8,
+        8
+      ],
+      "same_ids_on_every_frame": true,
+      "n_ids": 8
+    }
+  }
+}

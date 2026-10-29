@@ -1,0 +1,33 @@
+# Five prompt types per held-out unseen class (professor's W6-7 feedback §6.2):
+# exact name, short synonym, alternative name, functional description, broad category.
+# Run each type as its own prompt file; src/open_vocab/evaluate.py compares recall per type.
+digital multimeter:
+  exact: digital multimeter
+  synonym: multimeter
+  alternative: voltage meter
+  functional: device used to measure voltage
+  category: electrical measuring instrument
+soldering iron:
+  exact: soldering iron
+  synonym: soldering pen
+  alternative: soldering tool
+  functional: tool used to melt solder
+  category: electronics soldering tool
+vernier caliper:
+  exact: vernier caliper
+  synonym: caliper
+  alternative: sliding caliper
+  functional: tool used to measure thickness
+  category: precision measuring tool
+hot glue gun:
+  exact: hot glue gun
+  synonym: glue gun
+  alternative: hot melt gun
+  functional: tool used to apply hot glue
+  category: adhesive applicator
+portable lidar scanner:
+  exact: portable lidar scanner
+  synonym: lidar
+  alternative: laser scanner
+  functional: device that measures distance with lasers
+  category: 3d scanning device

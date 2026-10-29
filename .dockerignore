@@ -1,0 +1,14 @@
+.git
+.github
+**/__pycache__
+**/*.pyc
+.pytest_cache
+data/demo_store
+data/bags
+data/frames
+outputs/pipeline
+outputs/smoke_test
+output
+*.db3
+*.mcap
+docs/s2/screenshots

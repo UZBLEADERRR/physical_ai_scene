@@ -1,0 +1,14 @@
+# S1 fallback intrinsics: ZED Mini, left rectified image, HD720.
+# Used ONLY when a bag has no sensor_msgs/CameraInfo (the S0 calibration bag was skipped).
+# src/sensors/bag_replay.py scales fx/fy/cx/cy to the recorded image size (e.g. VGA 672x376).
+# Nominal values from the ZED Mini field of view (90 deg H x 60 deg V): fx = 640 / tan(45 deg).
+# S1: replace with the factory values of our camera (ZED Explorer -> Settings -> Calibration,
+# or `ros2 topic echo --once /zed/zed_node/rgb/camera_info`) as soon as they are available.
+width: 1280
+height: 720
+fx: 640.0
+fy: 640.0
+cx: 640.0
+cy: 360.0
+depth_scale: 1.0   # ZED depth is 32FC1 metres
+source: nominal_zed_mini_hd720
