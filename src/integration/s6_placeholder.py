@@ -1,9 +1,8 @@
-"""S6 placeholder: centroid tracker + ActionGoal on a virtual desk grid.
+"""S6 Week-5 baseline: greedy centroid tracker + straight-line ActionGoal (v1).
 
-Follows the behaviour S6 presented in Week 5 (15 cm gate, N-frame memory, straight path,
-exclusion zones, 4-field ActionGoal) so the launch file and the dashboard can run end to end.
-When S6 merges ``src/tracking`` and ``src/planning``, ``main_pipeline.py`` switches to them;
-this file then only serves as the reference for the contract.
+This was the placeholder the pipeline ran on until ``src/tracking`` (MultiTermTracker) and
+``src/planning`` (ActionGoal v2) existed. It is kept unchanged as the **baseline** that
+``scripts/s6_tracking_eval.py`` compares the new tracker against, and as the v1 contract reference.
 """
 
 import math

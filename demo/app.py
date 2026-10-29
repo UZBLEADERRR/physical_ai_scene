@@ -34,7 +34,7 @@ from demo import runs  # noqa: E402
 from src.fusion_3d.geometry import gravity_box_corners  # noqa: E402
 from src.integration import s5_adapter  # noqa: E402
 from src.integration.pipeline import load_config  # noqa: E402
-from src.integration.s6_placeholder import build_action_goal, node_label, simulate  # noqa: E402
+from src.planning import build_action_goal, node_label, simulate  # noqa: E402
 
 st.set_page_config(page_title="G1 Scene Understanding Demo", page_icon="🧭", layout="wide")
 
@@ -197,7 +197,8 @@ def topdown(graph, goal, height=420, tracks=None):
         if goal["target_pose"]:
             t = goal["target_pose"]
             ok = goal["validated"]
-            fig.add_trace(go.Scatter(x=[a[1], t[1]], y=[a[0], t[0]], mode="lines",
+            path = goal.get("path") or [a, t[:2]]
+            fig.add_trace(go.Scatter(x=[p[1] for p in path], y=[p[0] for p in path], mode="lines",
                                      line=dict(color="#3aa463" if ok else "#d24a4a", width=3, dash="solid" if ok else "dash"),
                                      name="accepted path" if ok else "rejected path"))
     fig.update_layout(height=height, margin=dict(l=0, r=0, t=10, b=0), legend=dict(orientation="h", y=-0.2),
@@ -244,8 +245,8 @@ def view_3d(run_dir: Path, frame, goal=None, show_cloud=True, height=520):
             fig.add_trace(go.Scatter3d(x=xs, y=ys, z=[0.002] * len(xs), mode="lines", name=f"no-go {z['object_id']}",
                                        line=dict(color="#d24a4a", width=6, dash="dash")))
         if goal["target_pose"]:
-            a, t = goal["agent_start"], goal["target_pose"]
-            fig.add_trace(go.Scatter3d(x=[a[0], t[0]], y=[a[1], t[1]], z=[0.005, 0.005], mode="lines+markers",
+            path = goal.get("path") or [goal["agent_start"], goal["target_pose"][:2]]
+            fig.add_trace(go.Scatter3d(x=[p[0] for p in path], y=[p[1] for p in path], z=[0.005] * len(path), mode="lines+markers",
                                        line=dict(color="#3aa463" if goal["validated"] else "#d24a4a", width=8),
                                        name="agent path"))
     fig.update_layout(height=height, margin=dict(l=0, r=0, t=0, b=0), legend=dict(font=dict(size=10)),
@@ -691,10 +692,15 @@ def tab_s6_tracking(frames, k):
     moved = frames[k].get("track_motion_m", {})
     rows = [{"persistent id": p, "moved since last frame (cm)": round(m * 100, 2)} for p, m in sorted(moved.items())]
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    events = [{"frame": f["frame"], "event": e["event"], "persistent id": e["persistent_id"]}
+              for f in frames[: k + 1] for e in f.get("events", [])]
+    if events:
+        st.markdown("**Events up to this frame** (APPEARED / MOVED / OCCLUDED / REAPPEARED / PICKED_UP / PLACED_ON / REMOVED)")
+        st.dataframe(pd.DataFrame(events[::-1]), hide_index=True, width="stretch", height=220)
     cfg = load_config()["tracking"]
-    st.caption(f"Association: same label + centroid gate {cfg['gate_m'] * 100:.0f} cm, occlusion memory "
-               f"{cfg['max_missed_frames']} frames (Week-5 baseline; `src/integration/s6_placeholder.py` until "
-               f"`src/tracking` is merged). Tracks in this recording: {len(ids)}.")
+    st.caption(f"Association (`src/tracking/tracker.py`): Hungarian on position (gate {cfg['gate_m'] * 100:.0f} cm after "
+               f"velocity prediction) + label + size; hidden objects kept {cfg['max_missed_frames']} frames and "
+               f"re-identified up to {cfg.get('reid_gate_m', 0.6) * 100:.0f} cm away. Tracks in this recording: {len(ids)}.")
 
 
 def tab_s4(frames, k):
@@ -826,11 +832,12 @@ def tab_s6_action(run_dir, frame, goal_state):
     with c1:
         st.plotly_chart(topdown(frame["graph"], goal, height=460), width="stretch", key="s6_twin")
         st.caption("Virtual twin (top-down, map frame). Red = exclusion polygons around objects the agent must "
-                   "never cross; the straight path is accepted only if it stays clear.")
+                   "never cross; the path is accepted only if it stays clear (planner: straight, or detour around the zones).")
     with c2:
         st.metric("ActionGoal", "validated ✓" if goal["validated"] else "rejected ✗", goal["reason"],
                   delta_color="normal" if goal["validated"] else "inverse")
-        st.json({k: goal[k] for k in ("target_object_id", "target_pose", "validated", "reason")}, expanded=True)
+        st.json({k: goal.get(k) for k in ("target_object_id", "target_pose", "validated", "reason_code", "reason", "warnings")},
+                expanded=True)
         st.markdown("**Virtual-twin simulation**")
         st.json(sim, expanded=True)
     with st.expander("3D view with exclusion zones and path"):

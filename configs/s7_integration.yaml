@@ -12,12 +12,21 @@ stages:
 scene_graph:
   desk_top_z: 0.0          # desk surface height in the map frame (S1 calibration)
 
-# S6 placeholder settings (used until S6 merges src/tracking + src/planning).
+# S6 tracking (src/tracking/tracker.py, MultiTermTracker).
 tracking:
-  gate_m: 0.15             # same label + centroid moved < 15 cm -> same persistent ID
-  max_missed_frames: 10    # hidden objects are kept for N frames, then dropped
+  gate_m: 0.15             # visible object: moved < 15 cm per frame (after velocity prediction) -> same ID
+  max_missed_frames: 10    # hidden objects are kept for N frames (occluded), then REMOVED
+  reid_gate_m: 0.60        # a hidden object may come back this far away (picked up and put down)
+  move_threshold_m: 0.03   # rest position changed more than this -> MOVED event
+  confidence_decay: 0.85   # track confidence x this per hidden frame
 
+# S6 action (src/planning/action.py, ActionGoal v2).
 action:
+  planner: straight                # straight (Week-5 rule: blocked straight line = rejected) | detour (A* around zones)
+  min_target_confidence: 0.3       # below this the goal is still sent, with a LOW_TARGET_CONFIDENCE warning
+  workspace_bounds: [0.0, 1.4, -0.6, 0.6]   # detour planner grid (map frame, metres)
+  grid_m: 0.01
+  clearance_m: 0.02                # detour keeps this distance from every zone
   agent_start: [0.25, 0.00]        # virtual agent (map frame, metres) at the front edge of the desk
   exclusion_labels: [laptop]       # objects the agent must never cross
   exclusion_margin_m: 0.03         # zone = object footprint inflated by this margin

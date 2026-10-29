@@ -20,7 +20,8 @@ from ..fusion_3d.transforms import apply_transform
 from ..preprocessing.frame_loader import find_observation_file, load_frame, load_semantic_observations
 from ..scene_graph.engine import SceneGraphEngine
 from . import contracts, s5_adapter
-from .s6_placeholder import CentroidTracker, build_action_goal, simulate
+from ..planning import build_action_goal, simulate
+from ..tracking import MultiTermTracker
 
 REPO = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG = REPO / "configs" / "s7_integration.yaml"
@@ -55,12 +56,12 @@ class Pipeline:
     def __init__(self, out_dir="outputs/pipeline", config=None, s3_mode=None, parser=None):
         self.cfg = load_config(config) if not isinstance(config, dict) else config
         self.out = Path(out_dir)
-        for sub in ("objects", "scene_graph", "points", "reasoning"):
+        for sub in ("objects", "scene_graph", "points", "reasoning", "tracking"):
             (self.out / sub).mkdir(parents=True, exist_ok=True)
         self.s2_cfg = load_s2_config()
         self.s3_mode = s3_mode or self.cfg["stages"]["s3_mode"]
         self.parser = s5_adapter.resolve_parser(parser or self.cfg["stages"]["s5_parser"])
-        self.tracker = CentroidTracker(**self.cfg["tracking"])
+        self.tracker = MultiTermTracker(**self.cfg["tracking"], desk_top_z=self.cfg["scene_graph"]["desk_top_z"])
         self.graph_engine = SceneGraphEngine(desk_top_z=self.cfg["scene_graph"]["desk_top_z"],
                                              session_id=self.out.name)
         self._s3 = None
@@ -121,8 +122,10 @@ class Pipeline:
         t["s2_fusion"] = time.perf_counter() - t0
 
         t0 = time.perf_counter()
-        self.tracker.update(payload["objects"])                             # S6 tracking
+        self.tracker.update(payload["objects"], frame.timestamp)            # S6 tracking
         t["s6_tracking"] = time.perf_counter() - t0
+        self._write(f"tracking/{name}_track_state.json", self.tracker.state(frame.timestamp))
+        self.tracker.write_event_log(self.out / "tracking" / "event_log.jsonl")
         self._check("objects", payload, f"S2 {name}")
         self._write(f"objects/{name}_objects.json", payload)
 
@@ -140,6 +143,7 @@ class Pipeline:
                "n_rejected": len(payload["rejected"]),
                "ids": {o["object_id"]: o["persistent_id"] for o in payload["objects"]},
                "track_motion_m": dict(self.tracker.last_motion),
+               "events": [{k: e[k] for k in ("event", "persistent_id")} for e in self.tracker.events],
                "timings_ms": {k: round(v * 1e3, 2) for k, v in t.items()}}
         rec["timings_ms"]["total"] = round(sum(t.values()) * 1e3, 2)
         self.frames.append(rec)

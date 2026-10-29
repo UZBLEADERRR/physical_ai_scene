@@ -27,7 +27,7 @@ sys.path.insert(0, str(ROOT))
 from src.fusion_3d.geometry import gravity_box_corners  # noqa: E402
 from src.integration import s5_adapter  # noqa: E402
 from src.integration.pipeline import load_config  # noqa: E402
-from src.integration.s6_placeholder import build_action_goal, node_label, simulate  # noqa: E402
+from src.planning import build_action_goal, node_label, simulate  # noqa: E402
 
 RUN_DIR = ROOT / "outputs" / "pipeline"
 PALETTE = ["#2a78d6", "#e3742b", "#3aa463", "#c64fb0", "#d6b02a", "#5bb6c9", "#8a6bd1", "#d24a4a"]
